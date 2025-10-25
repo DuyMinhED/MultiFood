@@ -47,6 +47,18 @@ dependencies {
 
     implementation("androidx.navigation:navigation-compose:$nav_version")
 
+    // Thêm dòng này
+    // Chắc chắn rằng bạn có dòng này
+    implementation("androidx.compose.material3:material3:1.2.1")
+
+// Bạn có thể xóa hoặc giữ lại thư viện material cũ, nhưng tốt nhất là chỉ dùng một
+// implementation("androidx.compose.material:material:1.6.8")
+
+// Bạn có thể cần các thư viện Compose cơ bản khác
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.activity:activity-compose:1.9.0")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

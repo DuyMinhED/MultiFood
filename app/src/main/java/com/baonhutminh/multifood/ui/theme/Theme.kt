@@ -1,58 +1,67 @@
+// file: com/baonhutminh/multifood/ui/theme/Theme.kt
+
 package com.baonhutminh.multifood.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.MaterialTheme // <-- Thay đổi import
+import androidx.compose.material3.darkColorScheme // <-- Thay đổi import
+import androidx.compose.material3.lightColorScheme // <-- Thay đổi import
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
+// Sử dụng darkColorScheme của Material 3
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = Orange400,
+    secondary = Blue400,
+    background = Neutral800,
+    surface = Neutral700,
+    onPrimary = Neutral900,
+    onSecondary = Neutral900,
+    onBackground = Neutral100,
+    onSurface = Neutral100
 )
 
+// Sử dụng lightColorScheme của Material 3
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = Orange500,
+    secondary = Blue700,
+    background = Neutral50,
+    surface = androidx.compose.ui.graphics.Color.White,
+    onPrimary = androidx.compose.ui.graphics.Color.White,
+    onSecondary = androidx.compose.ui.graphics.Color.White,
+    onBackground = Neutral900,
+    onSurface = Neutral900
 )
 
 @Composable
 fun MultiFoodTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
 
+    // Đoạn code này giúp đổi màu thanh trạng thái (status bar)
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.primary.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+        }
+    }
+
+    // Sử dụng MaterialTheme của Material 3
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = colorScheme, // <-- Tham số là 'colorScheme'
         typography = Typography,
+        shapes = Shapes, // <-- Giữ nguyên, Shapes vẫn tương thích
         content = content
     )
 }
