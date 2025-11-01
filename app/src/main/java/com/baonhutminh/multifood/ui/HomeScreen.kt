@@ -17,10 +17,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.baonhutminh.multifood.R
-import com.baonhutminh.multifood.data.model.Article
+import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.ui.theme.MultiFoodTheme
 import com.baonhutminh.multifood.ui.theme.Red
 import com.baonhutminh.multifood.ui.theme.White
@@ -29,9 +29,9 @@ import com.baonhutminh.multifood.viewmodel.HomeViewModel
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel
+    viewModel: HomeViewModel,
+    navController: NavController
 ) {
-
     MultiFoodTheme {
         Box(
             Modifier
@@ -39,54 +39,59 @@ fun HomeScreen(
                 .background(Color(0xFF787A7B)),
             contentAlignment = Alignment.Center
         ) {
+            val articles by viewModel.articles
+            val isLoading by viewModel.isLoading
 
-        val articles by viewModel.articles
-        val isLoading by viewModel.isLoading
-
-        if (articles.isEmpty()) {
-            LaunchedEffect(Unit) {
-                viewModel.getArticles()
+            // 🔥 Gọi getArticles() chỉ 1 lần duy nhất khi vào màn hình
+            LaunchedEffect(key1 = true) {
+                if (articles.isEmpty()) {
+                    viewModel.getArticles()
+                }
             }
-        }
 
-             when{
-                 isLoading-> CircularProgressIndicator()
-                 articles.isEmpty()->{
-                     Text(text = "Không có dữ liệu")
-                 }
-                 else->
-                     LazyColumn(
-                         modifier = modifier
-                             .fillMaxWidth()
-                             .padding(10.dp),
-                         horizontalAlignment = Alignment.CenterHorizontally
-                     ) {
-                         items(articles.size) { index ->
-                             val article = articles[index]
-                             AnimatedVisibility(
-                                 visible = true,
-                                 enter = fadeIn(),
-                                 exit = fadeOut()
-                             ) {
-                                 CardArticle(
-                                     article = article,
-                                     onClick = {
-                                         // 🔥 Tại đây bạn có thể điều hướng sang màn chi tiết
-                                         // Ví dụ: navController.navigate("detail/${article.id}")
-                                     }
-                                 )
-                             }
-                             Spacer(modifier = Modifier.height(12.dp))
-                         }
-                     }
+            when {
+                isLoading -> {
+                    CircularProgressIndicator()
+                }
 
-             }
+                articles.isEmpty() -> {
+                    Text(text = "Không có dữ liệu")
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier = modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        items(articles.size) { index ->
+                            val article = articles[index]
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(),
+                                exit = fadeOut()
+                            ) {
+                                CardArticle(
+                                    article = article,
+                                    onClick = {
+                                        // Điều hướng tới chi tiết bài viết
+                                        navController.navigate("detail/${article.id}")
+                                    }
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
+
 @Composable
-fun CardArticle(article: Article, onClick: () -> Unit = {}) {
+fun CardArticle(article: Post, onClick: () -> Unit = {}) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -97,18 +102,18 @@ fun CardArticle(article: Article, onClick: () -> Unit = {}) {
         colors = CardDefaults.cardColors(containerColor = White)
     ) {
         Column {
-            // Hình ảnh
-            Image(
-                painter = painterResource(id = article.imageUrl),
-                contentDescription = null,
+            // ✅ Bọc AsyncImage trong try-catch Compose-friendly
+            AsyncImage(
+                model = article.images.firstOrNull() ?: "",
+                contentDescription = article.title,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
                     .clip(MaterialTheme.shapes.large),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
+                onError = { /* hiển thị ảnh fallback nếu lỗi */ }
             )
 
-            // Nội dung bài viết
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(
                     text = article.title,
@@ -123,14 +128,13 @@ fun CardArticle(article: Article, onClick: () -> Unit = {}) {
                 )
 
                 Text(
-                    text = "Đánh giá: ${article.point} /10 điểm",
+                    text = "Đánh giá: ${article.rating} /10 điểm",
                     color = Red,
                     fontWeight = FontWeight.Bold
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Hàng nút hành động
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -147,7 +151,7 @@ fun CardArticle(article: Article, onClick: () -> Unit = {}) {
                     }
 
                     OutlinedButton(
-                        onClick = {},
+                        onClick = { onClick() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Chi tiết")
@@ -158,11 +162,5 @@ fun CardArticle(article: Article, onClick: () -> Unit = {}) {
     }
 }
 
-/*
-@Preview(showBackground = true)
-@Composable
-fun PreviewHomeScreen() {
-    val vm = HomeViewModel()
-    HomeScreen(viewModel = vm)
-}
-*/
+
+
