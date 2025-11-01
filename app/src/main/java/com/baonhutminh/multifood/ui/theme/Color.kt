@@ -20,3 +20,9 @@ val Blue400 = Color(0xFF60A5FA)   // Xanh nhấn nhạt hơn
 val Neutral800 = Color(0xFF1A202C)  // Nền ứng dụng tối
 val Neutral700 = Color(0xFF2D3748)  // Nền thẻ tối (Surface)
 val Neutral100 = Color(0xFFF1F5F9)  // Văn bản chính trong Dark mode
+
+
+val White = Color(0xFFFFFFFF)
+val Red = Color(0xFFFF0000)
+
+val BackGroundTitleAndContent= Color(0xFFBFBDBD)

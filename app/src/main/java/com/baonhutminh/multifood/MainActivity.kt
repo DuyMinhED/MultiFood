@@ -1,9 +1,11 @@
 package com.baonhutminh.multifood
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -18,8 +20,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.baonhutminh.multifood.ui.screens.home.HomeScreen
+import com.baonhutminh.multifood.ui.ExplodeScreen
+import com.baonhutminh.multifood.ui.HomeScreen
 import com.baonhutminh.multifood.ui.theme.MultiFoodTheme
+import com.baonhutminh.multifood.viewmodel.HomeViewModel
 
 data class BottomNavigationItem(
     val title: String,
@@ -32,17 +36,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            // THAY ĐỔI: Không cần gọi MultiFoodTheme ở đây nữa
-            // vì nó đã được gọi bên trong MultiFoodApp
             MultiFoodApp()
         }
     }
 }
 
+@SuppressLint("ViewModelConstructorInComposable")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MultiFoodApp() {
-    // Theme được áp dụng cho toàn bộ ứng dụng tại đây
     MultiFoodTheme {
         val items = listOf(
             BottomNavigationItem("Home", Icons.Filled.Home, Icons.Outlined.Home),
@@ -56,8 +58,9 @@ fun MultiFoodApp() {
         val navController = rememberNavController()
         var searchText by remember { mutableStateOf("") }
 
-        // Surface sẽ tự động lấy màu nền từ theme
-        Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
+        val homeViewModel= HomeViewModel()
+
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Scaffold(
                 topBar = {
                     TopAppBar(
@@ -121,7 +124,7 @@ fun MultiFoodApp() {
                                 selected = selectedItemIndex == index,
                                 onClick = {
                                     selectedItemIndex = index
-                                    // navController.navigate(item.title)
+                                    navController.navigate(item.title)
                                 },
                                 label = { Text(text = item.title) },
                                 icon = {
@@ -153,8 +156,13 @@ fun MultiFoodApp() {
                     modifier = Modifier.padding(innerPadding)
                 ) {
                     composable("home") {
-                        HomeScreen()
+                        HomeScreen(Modifier, homeViewModel)
                     }
+
+                    composable("explore") {
+                        ExplodeScreen()
+                    }
+
                 }
             }
         }
