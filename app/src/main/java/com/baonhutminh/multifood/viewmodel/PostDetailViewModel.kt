@@ -6,7 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.model.Comment
-import com.baonhutminh.multifood.data.model.Post
+import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,8 +20,8 @@ class PostDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val _post = mutableStateOf<Post?>(null)
-    val post: State<Post?> = _post
+    private val _post = mutableStateOf<PostEntity?>(null) // <-- Đã sửa: Post -> PostEntity
+    val post: State<PostEntity?> = _post
 
     private val _comments = mutableStateOf<List<Comment>>(emptyList())
     val comments: State<List<Comment>> = _comments
@@ -73,6 +73,7 @@ class PostDetailViewModel @Inject constructor(
         if (content.isBlank()) return
 
         viewModelScope.launch {
+            // Cần tạo một đối tượng Comment DTO hoàn chỉnh hơn ở đây
             val newComment = Comment(reviewId = postId, content = content)
             val result = postRepository.addComment(newComment)
             if (result is Resource.Error) {

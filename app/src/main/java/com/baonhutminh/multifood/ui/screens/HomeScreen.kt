@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.baonhutminh.multifood.ui.components.AppBottomBar
-import com.baonhutminh.multifood.ui.components.Header
+import com.baonhutminh.multifood.ui.components.AppTopBar
 import com.baonhutminh.multifood.ui.components.PostItemCard
 import com.baonhutminh.multifood.ui.navigation.Screen
 import com.baonhutminh.multifood.viewmodel.HomeViewModel
@@ -59,12 +59,12 @@ fun HomeScreen(
         },
         topBar = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Header(Screen.Home)
+                AppTopBar(Screen.Home)
             }
         },
         bottomBar = {
             AppBottomBar(
-                onHomeClick = {},
+                onClickHome = {},
                 onAccountClick = onAccountClick
             )
         }

@@ -73,7 +73,7 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun updateDisplayName(newName: String) {
+    fun updateName(newName: String) { // Đổi tên hàm
         if (newName.isBlank()) {
             _errorMessage.value = "Tên không được để trống"
             return
@@ -83,7 +83,7 @@ class ProfileViewModel @Inject constructor(
             _isUpdating.value = true
             _errorMessage.value = null
 
-            when (val result = profileRepository.updateDisplayName(newName)) {
+            when (val result = profileRepository.updateName(newName)) { // Gọi hàm mới
                 is Resource.Success -> {
                     _successMessage.value = "Cập nhật tên thành công"
                 }

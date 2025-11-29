@@ -7,10 +7,10 @@ import kotlinx.coroutines.flow.Flow
 
 interface ProfileRepository {
     fun getUserProfile(): Flow<Resource<UserProfile?>>
-    suspend fun updateDisplayName(newName: String): Resource<Unit>
+    suspend fun updateName(newName: String): Resource<Unit> // Đổi tên từ updateDisplayName
     suspend fun updateBio(newBio: String): Resource<Unit>
     suspend fun uploadAvatar(imageUri: Uri): Resource<String>
     suspend fun changePassword(currentPassword: String, newPassword: String): Resource<Unit>
-    suspend fun refreshUserProfile(): Resource<Unit> // Hàm mới để buộc làm mới dữ liệu từ Firebase
+    suspend fun refreshUserProfile(): Resource<Unit>
 
 }

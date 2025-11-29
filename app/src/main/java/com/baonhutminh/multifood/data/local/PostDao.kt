@@ -3,29 +3,29 @@ package com.baonhutminh.multifood.data.local
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
-import com.baonhutminh.multifood.data.model.Post
+import com.baonhutminh.multifood.data.model.PostEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PostDao {
 
     @Upsert
-    suspend fun upsert(post: Post)
+    suspend fun upsert(post: PostEntity)
 
     @Upsert
-    suspend fun upsertAll(posts: List<Post>)
+    suspend fun upsertAll(posts: List<PostEntity>)
 
     @Query("SELECT * FROM posts ORDER BY createdAt DESC")
-    fun getAllPosts(): Flow<List<Post>>
+    fun getAllPosts(): Flow<List<PostEntity>>
 
     @Query("SELECT * FROM posts WHERE userId = :userId ORDER BY createdAt DESC")
-    fun getPostsForUser(userId: String): Flow<List<Post>>
+    fun getPostsForUser(userId: String): Flow<List<PostEntity>>
 
     @Query("SELECT * FROM posts WHERE id = :postId")
-    fun getPostById(postId: String): Flow<Post?>
+    fun getPostById(postId: String): Flow<PostEntity?>
 
     @Query("SELECT * FROM posts WHERE id IN (:postIds) ORDER BY createdAt DESC")
-    fun getPostsByIds(postIds: List<String>): Flow<List<Post>> // Hàm mới
+    fun getPostsByIds(postIds: List<String>): Flow<List<PostEntity>>
 
     @Query("SELECT COUNT(id) FROM posts WHERE userId = :userId")
     suspend fun getPostCountForUser(userId: String): Int

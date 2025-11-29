@@ -72,7 +72,7 @@ fun AppNavigation() {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         }
                     },
-                    onClickHome = {
+                    onClickHome={
                         navController.navigate(Screen.Home.route)
                     }
                 )

@@ -1,26 +1,30 @@
 package com.baonhutminh.multifood.data.model
 
+import com.google.firebase.firestore.ServerTimestamp
+import java.util.Date
+
+/**
+ * Đại diện cho mô hình dữ liệu người dùng đầy đủ trên Firestore.
+ * Đây là một DTO (Data Transfer Object).
+ */
 data class User(
     val id: String = "",
     val name: String = "",
-    val handle: String = "",
-    val email: String = "",
-    val phoneNumber: String = "",
+    val email: String? = null,
     val avatarUrl: String = "",
-    val coverImageUrl: String = "",
     val bio: String = "",
-    val city: String = "",
+    val phoneNumber: String? = null,
 
-    val preferredCategories: List<String> = emptyList(),
-    val likedReviewIds: List<String> = emptyList(),
-    val bookmarkedReviewIds: List<String> = emptyList(),
-    val draftReviewIds: List<String> = emptyList(),
-    val recentSearchKeywords: List<String> = emptyList(),
-
+    val postCount: Int = 0,
     val followerCount: Int = 0,
     val followingCount: Int = 0,
 
-    val lastActiveAt: Long = System.currentTimeMillis(),
-    val createdAt: Long = System.currentTimeMillis()
-)
+    val likedPostIds: List<String> = emptyList(),
+    val bookmarkedPostIds: List<String> = emptyList(),
+    val recentSearchKeywords: List<String> = emptyList(),
 
+    @ServerTimestamp
+    val createdAt: Date? = null,
+    @ServerTimestamp
+    val updatedAt: Date? = null
+)

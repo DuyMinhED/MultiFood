@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
     tableName = "comments",
     foreignKeys = [
         ForeignKey(
-            entity = Post::class,
+            entity = PostEntity::class, // <-- Đã cập nhật
             parentColumns = ["id"],
             childColumns = ["reviewId"],
             onDelete = ForeignKey.CASCADE
@@ -18,7 +18,7 @@ import androidx.room.TypeConverters
             entity = UserProfile::class,
             parentColumns = ["id"],
             childColumns = ["userId"],
-            onDelete = ForeignKey.NO_ACTION // Để tránh lỗi xóa chuỗi (CASCADE)
+            onDelete = ForeignKey.NO_ACTION
         )
     ]
 )

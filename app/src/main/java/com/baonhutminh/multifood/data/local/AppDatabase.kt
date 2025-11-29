@@ -5,12 +5,12 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.Converters
-import com.baonhutminh.multifood.data.model.Post
+import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.UserProfile
 
 @Database(
-    entities = [UserProfile::class, Post::class, Comment::class],
-    version = 2, // <-- Đã tăng từ 1 lên 2
+    entities = [UserProfile::class, PostEntity::class, Comment::class],
+    version = 4, // <-- Tăng phiên bản lên 4
     exportSchema = false
 )
 @TypeConverters(Converters::class)

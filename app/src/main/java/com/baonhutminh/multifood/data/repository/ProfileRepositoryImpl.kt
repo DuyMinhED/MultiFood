@@ -3,6 +3,7 @@ package com.baonhutminh.multifood.data.repository
 import android.net.Uri
 import android.util.Log
 import com.baonhutminh.multifood.data.local.UserDao
+import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.EmailAuthProvider
@@ -23,7 +24,6 @@ class ProfileRepositoryImpl @Inject constructor(
 ) : ProfileRepository {
 
     private val usersCollection = firestore.collection("users")
-    private val postsCollection = firestore.collection("posts")
 
     override fun getUserProfile(): Flow<Resource<UserProfile?>> {
         val currentUser = auth.currentUser ?: return kotlinx.coroutines.flow.flowOf(Resource.Error("Chưa đăng nhập"))
@@ -37,41 +37,32 @@ class ProfileRepositoryImpl @Inject constructor(
 
         return try {
             val doc = usersCollection.document(currentUser.uid).get().await()
+            val userDto = doc.toObject(User::class.java)
 
-            val baseProfile = if (doc.exists()) {
-                UserProfile(
-                    id = currentUser.uid,
-                    displayName = doc.getString("displayName") ?: currentUser.displayName ?: "",
-                    email = currentUser.email ?: "",
-                    avatarUrl = doc.getString("avatarUrl") ?: currentUser.photoUrl?.toString() ?: "",
-                    bio = doc.getString("bio") ?: "",
-                    createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+            if (userDto != null) {
+                // Ánh xạ từ User (DTO) sang UserProfile (Entity)
+                val userProfile = UserProfile(
+                    id = userDto.id,
+                    name = userDto.name,
+                    email = userDto.email ?: "", // <-- Ánh xạ email
+                    avatarUrl = userDto.avatarUrl,
+                    bio = userDto.bio,
+                    postCount = userDto.postCount,
+                    followerCount = userDto.followerCount,
+                    followingCount = userDto.followingCount,
+                    likedPostIds = userDto.likedPostIds
                 )
+                userDao.upsert(userProfile)
             } else {
-                val newUserProfile = UserProfile(
+                val newUser = User(
                     id = currentUser.uid,
-                    displayName = currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "",
-                    email = currentUser.email ?: "",
-                    avatarUrl = currentUser.photoUrl?.toString() ?: ""
+                    name = currentUser.displayName ?: currentUser.email?.substringBefore('@') ?: "",
+                    email = currentUser.email
                 )
-                usersCollection.document(currentUser.uid).set(newUserProfile).await()
-                newUserProfile
+                usersCollection.document(currentUser.uid).set(newUser).await()
+                val newUserProfile = UserProfile(id = newUser.id, name = newUser.name, email = newUser.email ?: "")
+                userDao.upsert(newUserProfile)
             }
-
-            // Lấy danh sách ID các bài viết yêu thích từ Firestore
-            @Suppress("UNCHECKED_CAST")
-            val favoritePostIds = (doc.get("favoritePosts") as? List<String>) ?: emptyList()
-
-            // Lấy các dữ liệu đếm
-            val postsCount = postsCollection.whereEqualTo("userId", currentUser.uid).get().await().size()
-
-            val finalProfile = baseProfile.copy(
-                totalPosts = postsCount,
-                totalFavorites = favoritePostIds.size, // Đếm từ danh sách đã lấy
-                favoritePostIds = favoritePostIds // Lưu danh sách ID vào entity
-            )
-
-            userDao.upsert(finalProfile)
             Resource.Success(Unit)
         } catch (e: Exception) {
             Log.e("ProfileRepositoryImpl", "Error refreshing user profile", e)
@@ -79,16 +70,16 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateDisplayName(newName: String): Resource<Unit> {
+    override suspend fun updateName(newName: String): Resource<Unit> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
         return try {
             val profileUpdates = userProfileChangeRequest { displayName = newName }
             currentUser.updateProfile(profileUpdates).await()
-            usersCollection.document(currentUser.uid).update("displayName", newName).await()
+            usersCollection.document(currentUser.uid).update("name", newName).await()
             refreshUserProfile()
             Resource.Success(Unit)
         } catch (e: Exception) {
-            Log.e("ProfileRepositoryImpl", "Error updating display name", e)
+            Log.e("ProfileRepositoryImpl", "Error updating name", e)
             Resource.Error(e.message ?: "Lỗi cập nhật tên")
         }
     }

@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.baonhutminh.multifood.data.model.Post
+import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
@@ -29,8 +29,8 @@ class HomeViewModel @Inject constructor(
     private val auth: FirebaseAuth
 ) : ViewModel() {
 
-    private val _posts = mutableStateOf<List<Post>>(emptyList())
-    val posts: State<List<Post>> = _posts
+    private val _posts = mutableStateOf<List<PostEntity>>(emptyList()) // <-- Đã sửa: Post -> PostEntity
+    val posts: State<List<PostEntity>> = _posts
 
     private val _selectedTab = mutableStateOf(PostFilterTab.ALL)
     val selectedTab: State<PostFilterTab> = _selectedTab
@@ -58,12 +58,12 @@ class HomeViewModel @Inject constructor(
                         if (currentUser != null) {
                             postRepository.getPostsForUser(currentUser.uid)
                         } else {
-                            kotlinx.coroutines.flow.flowOf(Resource.Success<List<Post>>(emptyList()))
+                            kotlinx.coroutines.flow.flowOf(Resource.Success<List<PostEntity>>(emptyList()))
                         }
                     }
                     PostFilterTab.LIKED -> {
-                        val profileResource = profileRepository.getUserProfile().first() // Lấy dữ liệu profile một lần
-                        val likedIds = (profileResource as? Resource.Success)?.data?.favoritePostIds ?: emptyList()
+                        val profileResource = profileRepository.getUserProfile().first()
+                        val likedIds = (profileResource as? Resource.Success)?.data?.likedPostIds ?: emptyList()
                         postRepository.getLikedPosts(likedIds)
                     }
                 }
@@ -88,7 +88,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             if (isInitialLoad) _isLoading.value = true
 
-            // Luôn làm mới cả profile và posts để đảm bảo dữ liệu nhất quán
             profileRepository.refreshUserProfile()
             val result = postRepository.refreshAllPosts()
 
@@ -99,4 +98,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun clearErrorMessage() {
+        _errorMessage.value = null
+    }
 }

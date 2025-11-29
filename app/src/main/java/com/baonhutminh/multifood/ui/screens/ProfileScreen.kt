@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.baonhutminh.multifood.ui.components.AppBottomBar
-import com.baonhutminh.multifood.ui.components.Header
+import com.baonhutminh.multifood.ui.components.AppTopBar
 import com.baonhutminh.multifood.ui.navigation.Screen
 import com.baonhutminh.multifood.viewmodel.ProfileViewModel
 
@@ -46,8 +46,8 @@ import com.baonhutminh.multifood.viewmodel.ProfileViewModel
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     onNavigateToSettings: () -> Unit = {},
-    onClickHome:()->Unit={},
     onLogout: () -> Unit = {},
+    onClickHome:()->Unit,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userProfile by viewModel.userProfile
@@ -66,19 +66,20 @@ fun ProfileScreen(
         uri?.let { viewModel.uploadAvatar(it) }
     }
 
-    LaunchedEffect(successMessage) {
-        if (successMessage != null) {
+    LaunchedEffect(successMessage, errorMessage) {
+        if (successMessage != null || errorMessage != null) {
+            kotlinx.coroutines.delay(2000)
             viewModel.clearMessages()
         }
     }
 
     Scaffold(
         topBar = {
-            Header(Screen.Profile)
+            AppTopBar(Screen.Profile)
         },
         bottomBar = {
             AppBottomBar(
-                onHomeClick = onClickHome,
+                onClickHome = onClickHome,
                 onAccountClick = {},
                 _selectehome = false
             )
@@ -89,7 +90,7 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (isLoading) {
+            if (isLoading && userProfile == null) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center)
                 )
@@ -154,7 +155,7 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = userProfile?.displayName ?: "Người dùng",
+                            text = userProfile?.name ?: "Người dùng",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -206,12 +207,12 @@ fun ProfileScreen(
                     ) {
                         StatCard(
                             icon = Icons.Default.Article,
-                            count = userProfile?.totalPosts ?: 0,
+                            count = userProfile?.postCount ?: 0,
                             label = "Bài viết"
                         )
                         StatCard(
                             icon = Icons.Default.Favorite,
-                            count = userProfile?.totalFavorites ?: 0,
+                            count = userProfile?.likedPostIds?.size ?: 0,
                             label = "Yêu thích"
                         )
                     }
@@ -254,24 +255,39 @@ fun ProfileScreen(
                 }
             }
 
-            successMessage?.let { message ->
-                Snackbar(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp)
-                ) {
-                    Text(message)
-                }
-            }
-
-            errorMessage?.let { message ->
-                Snackbar(
+            val currentSuccessMessage = successMessage
+            if (currentSuccessMessage != null) {
+                Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(16.dp),
-                    containerColor = MaterialTheme.colorScheme.errorContainer
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    tonalElevation = 4.dp
                 ) {
-                    Text(message, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text(
+                        text = currentSuccessMessage,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            val currentErrorMessage = errorMessage
+            if (currentErrorMessage != null) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    tonalElevation = 4.dp
+                ) {
+                    Text(
+                        text = currentErrorMessage,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
                 }
             }
         }
@@ -280,10 +296,10 @@ fun ProfileScreen(
     if (showEditNameDialog) {
         EditTextDialog(
             title = "Đổi tên hiển thị",
-            currentValue = userProfile?.displayName ?: "",
+            currentValue = userProfile?.name ?: "",
             onDismiss = { showEditNameDialog = false },
             onConfirm = { newName ->
-                viewModel.updateDisplayName(newName)
+                viewModel.updateName(newName)
                 showEditNameDialog = false
             }
         )
@@ -374,8 +390,9 @@ private fun ProfileMenuItem(
     icon: ImageVector,
     title: String,
     onClick: () -> Unit,
-    tint: Color = MaterialTheme.colorScheme.onSurface
+    tint: Color = Color.Unspecified
 ) {
+    val color = if (tint == Color.Unspecified) MaterialTheme.colorScheme.onSurface else tint
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -386,14 +403,14 @@ private fun ProfileMenuItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = tint,
+            tint = color,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
-            color = tint,
+            color = color,
             modifier = Modifier.weight(1f)
         )
         Icon(

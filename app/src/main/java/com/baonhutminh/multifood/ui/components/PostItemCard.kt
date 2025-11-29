@@ -30,14 +30,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.baonhutminh.multifood.data.model.Post
+import com.baonhutminh.multifood.data.model.PostEntity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
 fun PostItemCard(
-    post: Post,
+    post: PostEntity, // <-- Đã sửa: Post -> PostEntity
     isLiked: Boolean,
     onLikeClick: (String) -> Unit,
     onItemClick: (String) -> Unit
@@ -74,7 +74,7 @@ fun PostItemCard(
                     )
                     Text(
                         text = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(
-                            Date(post.createdAt)
+                            Date(post.createdAt) // createdAt giờ là Long, không cần ?.time
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray

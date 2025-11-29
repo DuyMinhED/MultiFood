@@ -1,6 +1,5 @@
 package com.baonhutminh.multifood.ui.components
 
-import android.R
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.baonhutminh.multifood.ui.navigation.Screen
 
 @Composable
-fun Header(screen: Screen) {
+fun AppTopBar(screen: Screen) {
     Surface(
         color = MaterialTheme.colorScheme.surface, // Trắng (#FFFFFF)
         contentColor = MaterialTheme.colorScheme.onSurface // Đen (#191C1C)
@@ -43,7 +42,7 @@ fun Header(screen: Screen) {
 
 @Composable
 fun AppBottomBar(
-    onHomeClick: () -> Unit,
+    onClickHome: () -> Unit,
     onAccountClick: () -> Unit,
     _selectehome: Boolean = true
 ) {
@@ -53,7 +52,7 @@ fun AppBottomBar(
     ) {
         NavigationBarItem(
             selected =_selectehome ,
-            onClick = onHomeClick,
+            onClick = onClickHome,
             icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
             label = {
                 Text("Trang chủ", style = MaterialTheme.typography.labelMedium)

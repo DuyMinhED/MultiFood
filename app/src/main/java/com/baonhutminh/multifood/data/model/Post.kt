@@ -1,30 +1,15 @@
 package com.baonhutminh.multifood.data.model
 
-import androidx.room.Entity
-import androidx.room.ForeignKey
-import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
+import com.google.firebase.firestore.ServerTimestamp
+import java.util.Date
 
-@Entity(
-    tableName = "posts",
-    foreignKeys = [
-        ForeignKey(
-            entity = UserProfile::class,
-            parentColumns = ["id"],
-            childColumns = ["userId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
-)
-@TypeConverters(Converters::class)
+/**
+ * Đại diện cho mô hình dữ liệu của một bài đăng trên Firestore.
+ * Đây là một DTO (Data Transfer Object).
+ */
 data class Post(
-    @PrimaryKey
     val id: String = "",
-
-    // Thông tin định danh (Foreign Keys)
     val userId: String = "",
-
-    // Metadata phục vụ UI/UX
     val title: String = "",
     val rating: Float = 0.0f,
     val content: String = "",
@@ -32,20 +17,22 @@ data class Post(
     val pricePerPerson: Int = 0,
     val visitTimestamp: Long = 0L,
 
-    // --- CACHE DATA ---
+    // Dữ liệu được cache lại
     val userName: String = "",
     val userAvatarUrl: String = "",
     val placeName: String = "",
     val placeAddress: String = "",
     val placeCoverImage: String = "",
 
-    // Thống kê nhanh
     val likeCount: Int = 0,
     val commentCount: Int = 0,
 
     val status: PostStatus = PostStatus.PUBLISHED,
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+
+    @ServerTimestamp
+    val createdAt: Date? = null,
+    @ServerTimestamp
+    val updatedAt: Date? = null
 )
 
 enum class PostStatus {
