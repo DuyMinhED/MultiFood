@@ -1,7 +1,7 @@
 package com.baonhutminh.multifood.util
 
 import android.util.Log
-import com.baonhutminh.multifood.data.model.Review
+import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.User
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlin.random.Random
@@ -53,7 +53,7 @@ object DataSeeder {
             // Lấy ngẫu nhiên User
             val randomUser = createdUsers.random()
 
-            val review = Review(
+            val review = Post(
                 id = reviewRef.id,
                 userId = randomUser.id,
                 rating = Random.nextInt(3, 6), // 3 đến 5 sao

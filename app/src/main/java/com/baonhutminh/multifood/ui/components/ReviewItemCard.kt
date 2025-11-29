@@ -29,11 +29,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.baonhutminh.multifood.data.model.Review // Import đúng model của bạn
+import com.baonhutminh.multifood.data.model.Post // Import đúng model của bạn
 
 @Composable
 fun ReviewItemCard(
-    review: Review,                 // Dùng trực tiếp model Review
+    review: Post,                 // Dùng trực tiếp model Review
     isLiked: Boolean,               // Trạng thái tim (từ User.likedReviewIds)
     onDetailClick: (String) -> Unit,
     onLikeClick: (String) -> Unit

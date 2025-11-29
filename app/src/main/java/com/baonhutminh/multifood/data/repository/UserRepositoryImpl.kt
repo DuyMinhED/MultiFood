@@ -1,7 +1,6 @@
 package com.baonhutminh.multifood.data.repository
 
 import com.baonhutminh.multifood.data.model.User
-import com.baonhutminh.multifood.domain.repository.UserRepository
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore

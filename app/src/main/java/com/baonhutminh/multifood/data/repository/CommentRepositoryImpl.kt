@@ -1,7 +1,6 @@
 package com.baonhutminh.multifood.data.repository
 
 import com.baonhutminh.multifood.data.model.Comment
-import com.baonhutminh.multifood.domain.repository.CommentRepository
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue

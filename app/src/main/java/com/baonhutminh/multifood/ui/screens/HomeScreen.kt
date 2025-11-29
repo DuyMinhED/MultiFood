@@ -1,12 +1,10 @@
-package com.baonhutminh.multifood.ui.screens.home
+package com.baonhutminh.multifood.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
@@ -16,8 +14,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.baonhutminh.multifood.ui.components.ReviewItemCard
+import com.baonhutminh.multifood.ui.components.AppBottomBar
+import com.baonhutminh.multifood.ui.components.Header
+import com.baonhutminh.multifood.ui.components.PostItemCard
 import com.baonhutminh.multifood.ui.navigation.Screen
+import com.baonhutminh.multifood.viewmodel.HomeFilter
+import com.baonhutminh.multifood.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(
@@ -47,7 +49,7 @@ fun HomeScreen(
         topBar = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // 1. Header
-                HomeHeader()
+                Header(Screen.Home)
 
                 // 2. Bộ lọc (Tabs)
                 HomeFilterSection(
@@ -58,8 +60,8 @@ fun HomeScreen(
         },
         bottomBar = {
             // 4. Thanh điều hướng
-            HomeBottomBar(
-                onHomeClick = {}, // Đang ở Home
+            AppBottomBar(
+                onHomeClick = {},
                 onAccountClick = onAccountClick
             )
         }
@@ -92,13 +94,11 @@ fun HomeScreen(
                         // Check xem bài này user đã like chưa để tô đỏ
                         val isLiked = state.likedReviewIds.contains(review.id)
 
-                        ReviewItemCard(
-                            review = review,
+                        PostItemCard(
+                            post = review,
                             isLiked = isLiked,
-                            onDetailClick = onDetailClick,
-                            onLikeClick = { reviewId ->
-                                viewModel.onToggleLike(reviewId)
-                            }
+                            onLikeClick = {},
+                            onItemClick = {}
                         )
                     }
                 }
@@ -107,27 +107,8 @@ fun HomeScreen(
     }
 }
 
-// --- SUB-COMPONENTS (Tách nhỏ để code gọn) ---
 
-@Composable
-fun HomeHeader() {
-    Surface(
-        color = MaterialTheme.colorScheme.surface, // Trắng (#FFFFFF)
-        contentColor = MaterialTheme.colorScheme.onSurface // Đen (#191C1C)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = Screen.Home.name,
-                style = MaterialTheme.typography.headlineMedium // Font Bold 28sp
-            )
-        }
-    }
-}
+
 
 @Composable
 fun HomeFilterSection(
@@ -152,7 +133,7 @@ fun HomeFilterSection(
             Divider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         }
     ) {
-        HomeFilter.values().forEach { filter ->
+        HomeFilter.entries.forEach { filter ->
             val isSelected = currentFilter == filter
             Tab(
                 selected = isSelected,
@@ -171,45 +152,3 @@ fun HomeFilterSection(
     }
 }
 
-@Composable
-fun HomeBottomBar(
-    onHomeClick: () -> Unit,
-    onAccountClick: () -> Unit
-) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp
-    ) {
-        NavigationBarItem(
-            selected = true,
-            onClick = onHomeClick,
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
-            label = {
-                Text("Trang chủ", style = MaterialTheme.typography.labelMedium)
-            },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary,
-                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        )
-
-        NavigationBarItem(
-            selected = false,
-            onClick = onAccountClick,
-            icon = { Icon(Icons.Outlined.Person, contentDescription = "Account") },
-            label = {
-                Text("Tài khoản", style = MaterialTheme.typography.labelMedium)
-            },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary,
-                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        )
-    }
-}

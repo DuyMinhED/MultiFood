@@ -1,7 +1,6 @@
-package com.baonhutminh.multifood.ui.screens.account
+package com.baonhutminh.multifood.ui.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,11 +28,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.viewmodel.AuthViewModel
 
 @Composable
 fun AccountScreen(
     navController: NavController,
-    viewModel: UserViewModel = hiltViewModel()
+    viewModel: AuthViewModel = hiltViewModel()
 ) {
     val userState by viewModel.userState.collectAsState()
     val context = LocalContext.current
@@ -163,6 +163,3 @@ fun AccountScreen(
         }
     }
 }
-
-
-

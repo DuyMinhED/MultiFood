@@ -1,6 +1,21 @@
 package com.baonhutminh.multifood.ui.theme
 
 import androidx.compose.ui.graphics.Color
+val OrangeMain = Color(0xFFFF6B35)
+val OrangeLight = Color(0xFFFFA500)
+val OrangeDark = Color(0xFFE55A2B)
+
+val BlueMain = Color(0xFF2196F3)
+val BlueLight = Color(0xFF64B5F6)
+val BlueDark = Color(0xFF1976D2)
+
+val GreenMain = Color(0xFF4CAF50)
+val GreenLight = Color(0xFF81C784)
+val GreenDark = Color(0xFF388E3C)
+
+val PinkMain = Color(0xFFE91E63)
+val PinkLight = Color(0xFFF48FB1)
+val PinkDark = Color(0xFFC2185B)
 
 // --- BẢNG MÀU CHẾ ĐỘ SÁNG (LIGHT THEME) ---
 val md_theme_light_primary = Color(0xFFFF6D00) // Cam đậm (Màu chính)

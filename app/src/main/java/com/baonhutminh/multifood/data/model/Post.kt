@@ -1,6 +1,6 @@
 package com.baonhutminh.multifood.data.model
 
-data class Review(
+data class Post(
     val id: String = "",
 
     // Thông tin định danh (Foreign Keys)

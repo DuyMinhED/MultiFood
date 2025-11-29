@@ -1,8 +1,11 @@
-package com.baonhutminh.multifood.ui.screens.auth
+package com.baonhutminh.multifood.viewmodel
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.baonhutminh.multifood.domain.repository.AuthRepository
+import com.baonhutminh.multifood.data.model.User
+import com.baonhutminh.multifood.data.repository.AuthRepository
+import com.baonhutminh.multifood.data.repository.UserRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val repository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     private val _loginState = MutableStateFlow<Resource<String>?>(null)
@@ -24,6 +28,9 @@ class AuthViewModel @Inject constructor(
     private val _resetPasswordState = MutableStateFlow<Resource<Unit>?>(null)
     val resetPasswordState = _resetPasswordState.asStateFlow()
 
+    private val _userState = MutableStateFlow<Resource<User?>?>(null)
+    val userState = _userState.asStateFlow()
+
     fun login(email: String, pass: String) {
         viewModelScope.launch {
             if (email.isBlank() || pass.isBlank()) {
@@ -31,13 +38,13 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
             // Email validation
-            val emailPattern = android.util.Patterns.EMAIL_ADDRESS
+            val emailPattern = Patterns.EMAIL_ADDRESS
             if (!emailPattern.matcher(email).matches()) {
                 _loginState.value = Resource.Error("Email không hợp lệ")
                 return@launch
             }
             _loginState.value = Resource.Loading()
-            _loginState.value = repository.login(email, pass)
+            _loginState.value = authRepository.login(email, pass)
         }
     }
 
@@ -48,7 +55,7 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
             // Email validation
-            val emailPattern = android.util.Patterns.EMAIL_ADDRESS
+            val emailPattern = Patterns.EMAIL_ADDRESS
             if (!emailPattern.matcher(email).matches()) {
                 _signupState.value = Resource.Error("Email không hợp lệ")
                 return@launch
@@ -63,7 +70,7 @@ class AuthViewModel @Inject constructor(
             }
 
             _signupState.value = Resource.Loading()
-            _signupState.value = repository.signup(email, pass, name)
+            _signupState.value = authRepository.signup(email, pass, name)
         }
     }
 
@@ -73,14 +80,33 @@ class AuthViewModel @Inject constructor(
                 _resetPasswordState.value = Resource.Error("Vui lòng nhập email")
                 return@launch
             }
-            val emailPattern = android.util.Patterns.EMAIL_ADDRESS
+            val emailPattern = Patterns.EMAIL_ADDRESS
             if (!emailPattern.matcher(email).matches()) {
                 _resetPasswordState.value = Resource.Error("Email không hợp lệ")
                 return@launch
             }
             _resetPasswordState.value = Resource.Loading()
-            _resetPasswordState.value = repository.sendPasswordReset(email)
+            _resetPasswordState.value = authRepository.sendPasswordReset(email)
         }
     }
 
+    fun loadCurrentUser() {
+        viewModelScope.launch {
+            _userState.value = Resource.Loading()
+            val result = userRepository.getCurrentUser()
+            _userState.value = when (result) {
+                is Resource.Success -> {
+                    userRepository.updateLastActive()
+                    Resource.Success(result.data)
+                }
+                is Resource.Error -> Resource.Error(result.message ?: "Không thể tải thông tin người dùng")
+                is Resource.Loading -> Resource.Loading()
+            }
+        }
+    }
+
+    fun logout() {
+        authRepository.signOut()
+        _userState.value = null
+    }
 }

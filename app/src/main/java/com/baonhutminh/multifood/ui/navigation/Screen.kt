@@ -8,5 +8,5 @@ sealed class Screen(val route: String, val name:String="") {
     data object Detail : Screen("detail_screen/{reviewId}") {
         fun createRoute(reviewId: String) = "detail_screen/$reviewId"
     }
-    data object Account : Screen("account_screen", "Tài khoản")
+    data object Profile : Screen("account_screen", "Tài khoản")
 }

@@ -1,4 +1,4 @@
-package com.baonhutminh.multifood.domain.repository
+package com.baonhutminh.multifood.data.repository
 
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.util.Resource

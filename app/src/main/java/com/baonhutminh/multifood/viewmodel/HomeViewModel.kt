@@ -1,12 +1,12 @@
-package com.baonhutminh.multifood.ui.screens.home
+package com.baonhutminh.multifood.viewmodel
 
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.baonhutminh.multifood.data.model.Review
+import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.User
-import com.baonhutminh.multifood.domain.repository.ReviewRepository
+import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -25,8 +25,8 @@ enum class HomeFilter(val title: String) {
 // State quản lý toàn bộ dữ liệu màn hình Home
 data class HomeState(
     val isLoading: Boolean = false,
-    val reviews: List<Review> = emptyList(),          // Danh sách gốc
-    val filteredReviews: List<Review> = emptyList(),  // Danh sách đang hiển thị
+    val reviews: List<Post> = emptyList(),          // Danh sách gốc
+    val filteredReviews: List<Post> = emptyList(),  // Danh sách đang hiển thị
     val currentFilter: HomeFilter = HomeFilter.ALL,   // Tab đang chọn
     val likedReviewIds: Set<String> = emptySet(),     // Danh sách ID các bài đã like (để tô đỏ tim)
     val error: String = ""
@@ -34,7 +34,7 @@ data class HomeState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val reviewRepository: ReviewRepository,
+    private val postRepository: PostRepository,
     private val firestore: FirebaseFirestore
 ) : ViewModel() {
 
@@ -52,7 +52,7 @@ class HomeViewModel @Inject constructor(
     fun loadReviews() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-            when (val result = reviewRepository.getAllReviews()) {
+            when (val result = postRepository.getAllPosts()) {
                 is Resource.Success -> {
                     val allReviews = result.data ?: emptyList()
                     _state.value = _state.value.copy(
@@ -106,7 +106,7 @@ class HomeViewModel @Inject constructor(
 
         // B. Gọi xuống Server để lưu
         viewModelScope.launch {
-            val result = reviewRepository.toggleLikeReview(reviewId, currentUserId, isLiked)
+            val result = postRepository.toggleLikePost(reviewId, currentUserId, isLiked)
             if (result is Resource.Error) {
                 // Nếu lỗi server -> Hoàn tác lại UI (Revert)
                 val revertedIds = if (isLiked) newLikedIds + reviewId else newLikedIds - reviewId
