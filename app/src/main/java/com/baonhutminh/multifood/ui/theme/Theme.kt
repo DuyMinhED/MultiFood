@@ -5,49 +5,111 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import com.baonhutminh.multifood.data.model.AppTheme
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+private fun getColorScheme(theme: AppTheme, isDark: Boolean) = when (theme) {
+    AppTheme.ORANGE -> if (isDark) {
+        darkColorScheme(
+            primary = OrangeLight,
+            onPrimary = Black,
+            primaryContainer = OrangeDark,
+            onPrimaryContainer = White,
+            secondary = OrangeLight,
+            tertiary = OrangeMain
+        )
+    } else {
+        lightColorScheme(
+            primary = OrangeMain,
+            onPrimary = White,
+            primaryContainer = OrangeLight,
+            onPrimaryContainer = Black,
+            secondary = OrangeDark,
+            tertiary = OrangeLight
+        )
+    }
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    AppTheme.BLUE -> if (isDark) {
+        darkColorScheme(
+            primary = BlueLight,
+            onPrimary = Black,
+            primaryContainer = BlueDark,
+            onPrimaryContainer = White,
+            secondary = BlueLight,
+            tertiary = BlueMain
+        )
+    } else {
+        lightColorScheme(
+            primary = BlueMain,
+            onPrimary = White,
+            primaryContainer = BlueLight,
+            onPrimaryContainer = Black,
+            secondary = BlueDark,
+            tertiary = BlueLight
+        )
+    }
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-)
+    AppTheme.GREEN -> if (isDark) {
+        darkColorScheme(
+            primary = GreenLight,
+            onPrimary = Black,
+            primaryContainer = GreenDark,
+            onPrimaryContainer = White,
+            secondary = GreenLight,
+            tertiary = GreenMain
+        )
+    } else {
+        lightColorScheme(
+            primary = GreenMain,
+            onPrimary = White,
+            primaryContainer = GreenLight,
+            onPrimaryContainer = Black,
+            secondary = GreenDark,
+            tertiary = GreenLight
+        )
+    }
+
+    AppTheme.PINK -> if (isDark) {
+        darkColorScheme(
+            primary = PinkLight,
+            onPrimary = Black,
+            primaryContainer = PinkDark,
+            onPrimaryContainer = White,
+            secondary = PinkLight,
+            tertiary = PinkMain
+        )
+    } else {
+        lightColorScheme(
+            primary = PinkMain,
+            onPrimary = White,
+            primaryContainer = PinkLight,
+            onPrimaryContainer = Black,
+            secondary = PinkDark,
+            tertiary = PinkLight
+        )
+    }
+}
 
 @Composable
 fun MultiFoodTheme(
+    appTheme: AppTheme = AppTheme.ORANGE,
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+    val colorScheme = getColorScheme(appTheme, darkTheme)
+    val view = LocalView.current
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.primary.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+        }
     }
 
     MaterialTheme(
