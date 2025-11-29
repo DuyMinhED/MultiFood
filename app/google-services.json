@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1051570676237",
+    "project_id": "multi-5f70b",
+    "storage_bucket": "multi-5f70b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051570676237:android:6495809c88ca8ce7ee6b44",
+        "android_client_info": {
+          "package_name": "com.baonhutminh.multifood"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1051570676237-n8mtu8j191pbt17me07q3pcrajnt58pc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAncZdS8QRmmU9Nnw9z2KqATV97TCPuVYU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051570676237-n8mtu8j191pbt17me07q3pcrajnt58pc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
