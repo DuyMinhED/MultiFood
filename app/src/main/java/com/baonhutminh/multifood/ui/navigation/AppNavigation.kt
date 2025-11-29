@@ -1,24 +1,15 @@
 package com.baonhutminh.multifood.ui.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.baonhutminh.multifood.ui.screens.LoginScreen
 import com.baonhutminh.multifood.ui.screens.SignUpScreen
-import com.baonhutminh.multifood.ui.screens.AccountScreen
 import com.baonhutminh.multifood.ui.screens.HomeScreen
+import com.baonhutminh.multifood.ui.screens.ProfileScreen
+import com.baonhutminh.multifood.ui.screens.SettingsScreen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -26,10 +17,8 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val auth = FirebaseAuth.getInstance()
     val startDestination = if (auth.currentUser != null) {
-        // Người dùng đã đăng nhập trước đó, cho vào thẳng Home
         Screen.Home.route
     } else {
-        // Chưa đăng nhập, chuyển tới màn Login
         Screen.Login.route
     }
 
@@ -44,7 +33,6 @@ fun AppNavigation() {
         }
 
         composable(Screen.Home.route) {
-            // Authentication guard
             if (auth.currentUser == null) {
                 LaunchedEffect(Unit) {
                     navController.navigate(Screen.Login.route) {
@@ -53,14 +41,14 @@ fun AppNavigation() {
                 }
             } else {
                 HomeScreen(
-                    onDetailClick = { reviewId ->
-                        navController.navigate(Screen.Detail.createRoute(reviewId))
+                    onDetailClick = { postId ->
+                        navController.navigate(Screen.Detail.createRoute(postId))
                     },
                     onAccountClick = {
                         navController.navigate(Screen.Profile.route)
                     },
                     onCreateClick = {
-                        navController.navigate(Screen.CreateReview.route)
+                        navController.navigate(Screen.CreatePost.route)
                     }
                 )
             }
@@ -74,7 +62,20 @@ fun AppNavigation() {
                     }
                 }
             } else {
-                AccountScreen(navController = navController)
+                ProfileScreen(
+                    onNavigateToSettings = {
+                        navController.navigate(Screen.Settings.route)
+                    },
+                    onLogout = {
+                        auth.signOut()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        }
+                    },
+                    onClickHome = {
+                        navController.navigate(Screen.Home.route)
+                    }
+                )
             }
         }
 
@@ -82,12 +83,21 @@ fun AppNavigation() {
 
         }
 
-        composable(Screen.CreateReview.route) {
-            // Authentication guard
-
+        composable(Screen.CreatePost.route) {
         }
 
+        composable(Screen.Settings.route) {
+            if (auth.currentUser == null) {
+                LaunchedEffect(Unit) {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Settings.route) { inclusive = true }
+                    }
+                }
+            } else {
+                SettingsScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+        }
     }
 }
-
-

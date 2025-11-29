@@ -121,8 +121,10 @@ class ProfileViewModel @Inject constructor(
 
             when (val result = profileRepository.uploadAvatar(imageUri)) {
                 is Resource.Success -> {
-                    _userProfile.value = _userProfile.value?.copy(avatarUrl = result.data)
-                    _successMessage.value = "Cập nhật ảnh đại diện thành công"
+                    result.data?.let { newAvatarUrl ->
+                        _userProfile.value = _userProfile.value?.copy(avatarUrl = newAvatarUrl)
+                        _successMessage.value = "Cập nhật ảnh đại diện thành công"
+                    }
                 }
                 is Resource.Error -> {
                     _errorMessage.value = result.message ?: "Không thể tải lên ảnh đại diện"

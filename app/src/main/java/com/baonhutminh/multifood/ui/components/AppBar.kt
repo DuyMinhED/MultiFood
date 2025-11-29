@@ -1,5 +1,6 @@
 package com.baonhutminh.multifood.ui.components
 
+import android.R
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,7 +33,7 @@ fun Header(screen: Screen) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = screen.name,
+                text = screen.title.orEmpty(),
                 style = MaterialTheme.typography.headlineMedium // Font Bold 28sp
             )
         }
@@ -43,14 +44,15 @@ fun Header(screen: Screen) {
 @Composable
 fun AppBottomBar(
     onHomeClick: () -> Unit,
-    onAccountClick: () -> Unit
+    onAccountClick: () -> Unit,
+    _selectehome: Boolean = true
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp
     ) {
         NavigationBarItem(
-            selected = true,
+            selected =_selectehome ,
             onClick = onHomeClick,
             icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
             label = {
@@ -66,7 +68,7 @@ fun AppBottomBar(
         )
 
         NavigationBarItem(
-            selected = false,
+            selected = !_selectehome,
             onClick = onAccountClick,
             icon = { Icon(Icons.Outlined.Person, contentDescription = "Account") },
             label = {

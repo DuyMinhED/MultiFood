@@ -36,6 +36,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.baonhutminh.multifood.ui.components.AppBottomBar
+import com.baonhutminh.multifood.ui.components.Header
+import com.baonhutminh.multifood.ui.navigation.Screen
 import com.baonhutminh.multifood.viewmodel.ProfileViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +46,7 @@ import com.baonhutminh.multifood.viewmodel.ProfileViewModel
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     onNavigateToSettings: () -> Unit = {},
+    onClickHome:()->Unit={},
     onLogout: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
@@ -64,20 +68,19 @@ fun ProfileScreen(
 
     LaunchedEffect(successMessage) {
         if (successMessage != null) {
-            kotlinx.coroutines.delay(2000)
             viewModel.clearMessages()
         }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Tài khoản") },
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Cài đặt")
-                    }
-                }
+            Header(Screen.Profile)
+        },
+        bottomBar = {
+            AppBottomBar(
+                onHomeClick = onClickHome,
+                onAccountClick = {},
+                _selectehome = false
             )
         }
     ) { innerPadding ->

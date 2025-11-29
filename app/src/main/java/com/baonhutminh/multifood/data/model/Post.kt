@@ -8,7 +8,7 @@ data class Post(
 
     // Metadata phục vụ UI/UX
     val title: String = "",
-    val rating: Int = 0,
+    val rating: Float = 0.0f,
     val content: String = "",
     val imageUrls: List<String> = emptyList(),
     val pricePerPerson: Int = 0,
@@ -25,14 +25,13 @@ data class Post(
     val likeCount: Int = 0,
     val commentCount: Int = 0,
 
-    val status: ReviewStatus = ReviewStatus.PUBLISHED,
+    val status: PostStatus = PostStatus.PUBLISHED,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
 
-enum class ReviewStatus {
+enum class PostStatus {
     DRAFT,
     PUBLISHED,
     ARCHIVED
 }
-

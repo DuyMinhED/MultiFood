@@ -5,57 +5,97 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.baonhutminh.multifood.data.model.AppTheme
 
-// Cấu hình màu cho chế độ Tối
-private val DarkColorScheme = darkColorScheme(
-    primary = md_theme_dark_primary,
-    onPrimary = md_theme_dark_onPrimary,
-    primaryContainer = md_theme_dark_primaryContainer,
-    onPrimaryContainer = md_theme_dark_onPrimaryContainer,
-    secondary = md_theme_dark_secondary,
-    onSecondary = md_theme_dark_onSecondary,
-    background = md_theme_dark_background,
-    surface = md_theme_dark_surface,
-    onSurface = md_theme_dark_onSurface,
+private val DarkGreenColorScheme = darkColorScheme(
+    primary = GreenMain, 
+    secondary = GreenSecondary, 
+    tertiary = GreenTertiary
 )
 
-// Cấu hình màu cho chế độ Sáng
-private val LightColorScheme = lightColorScheme(
-    primary = md_theme_light_primary,
-    onPrimary = md_theme_light_onPrimary,
-    primaryContainer = md_theme_light_primaryContainer,
-    onPrimaryContainer = md_theme_light_onPrimaryContainer,
-    secondary = md_theme_light_secondary,
-    onSecondary = md_theme_light_onSecondary,
-    background = md_theme_light_background,
-    surface = md_theme_light_surface,
-    onSurface = md_theme_light_onSurface,
-    error = md_theme_light_error
+private val LightGreenColorScheme = lightColorScheme(
+    primary = GreenMain, 
+    secondary = GreenSecondary, 
+    tertiary = GreenTertiary
+)
+
+private val DarkBlueColorScheme = darkColorScheme(
+    primary = BlueMain, 
+    secondary = BlueSecondary, 
+    tertiary = BlueTertiary
+)
+
+private val LightBlueColorScheme = lightColorScheme(
+    primary = BlueMain, 
+    secondary = BlueSecondary, 
+    tertiary = BlueTertiary
+)
+
+private val DarkOrangeColorScheme = darkColorScheme(
+    primary = OrangeMain, 
+    secondary = OrangeSecondary, 
+    tertiary = OrangeTertiary
+)
+
+private val LightOrangeColorScheme = lightColorScheme(
+    primary = OrangeMain, 
+    secondary = OrangeSecondary, 
+    tertiary = OrangeTertiary
+)
+
+private val DarkPinkColorScheme = darkColorScheme(
+    primary = PinkMain, 
+    secondary = PinkSecondary, 
+    tertiary = PinkTertiary
+)
+
+private val LightPinkColorScheme = lightColorScheme(
+    primary = PinkMain, 
+    secondary = PinkSecondary, 
+    tertiary = PinkTertiary
 )
 
 @Composable
 fun MultiFoodTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // dynamicColor: Boolean = true, // <-- XÓA HOẶC BỎ QUA THAM SỐ NÀY
+    appTheme: AppTheme = AppTheme.ORANGE, // Default theme
+    dynamicColor: Boolean = false, // Dynamic color is available on Android 12+
     content: @Composable () -> Unit
 ) {
-    // Ép buộc dùng màu Cam của mình, không lấy màu hệ thống
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> when (appTheme) {
+            AppTheme.GREEN -> DarkGreenColorScheme
+            AppTheme.BLUE -> DarkBlueColorScheme
+            AppTheme.ORANGE -> DarkOrangeColorScheme
+            AppTheme.PINK -> DarkPinkColorScheme
+        }
+        else -> when (appTheme) {
+            AppTheme.GREEN -> LightGreenColorScheme
+            AppTheme.BLUE -> LightBlueColorScheme
+            AppTheme.ORANGE -> LightOrangeColorScheme
+            AppTheme.PINK -> LightPinkColorScheme
+        }
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // Đổi màu thanh trạng thái (Status Bar) thành màu Cam
             window.statusBarColor = colorScheme.primary.toArgb()
-            // Chỉnh màu icon status bar (Trắng hoặc Đen tùy nền)
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
         }
     }
 

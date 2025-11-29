@@ -8,12 +8,16 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.baonhutminh.multifood.data.model.AppTheme
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
-class SettingsPreferences(private val context: Context) {
+@Singleton
+class SettingsPreferences @Inject constructor(@ApplicationContext private val context: Context) {
 
     companion object {
         private val THEME_KEY = stringPreferencesKey("app_theme")
