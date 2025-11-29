@@ -8,13 +8,18 @@ import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.model.AppTheme
 import com.baonhutminh.multifood.data.preferences.SettingsPreferences
 import com.baonhutminh.multifood.data.repository.ProfileRepository
+import com.baonhutminh.multifood.util.Resource
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val settingsPreferences = SettingsPreferences(application)
-    private val profileRepository = ProfileRepository()
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    application: Application, // AndroidViewModel requires Application
+    private val settingsPreferences: SettingsPreferences,
+    private val profileRepository: ProfileRepository
+) : AndroidViewModel(application) {
 
     private val _appTheme = mutableStateOf(AppTheme.ORANGE)
     val appTheme: State<AppTheme> = _appTheme
@@ -90,21 +95,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _isLoading.value = true
             _errorMessage.value = null
 
-            val result = profileRepository.changePassword(currentPassword, newPassword)
-            result.fold(
-                onSuccess = {
+            when (val result = profileRepository.changePassword(currentPassword, newPassword)) {
+                is Resource.Success -> {
                     _successMessage.value = "Đổi mật khẩu thành công"
-                },
-                onFailure = { exception ->
-                    _errorMessage.value = when {
-                        exception.message?.contains("wrong-password") == true -> 
-                            "Mật khẩu hiện tại không đúng"
-                        exception.message?.contains("requires-recent-login") == true ->
-                            "Vui lòng đăng nhập lại để thực hiện thao tác này"
-                        else -> "Lỗi: ${exception.message}"
-                    }
                 }
-            )
+                is Resource.Error -> {
+                    val friendlyMessage = when {
+                        result.message?.contains("wrong-password", ignoreCase = true) == true ->
+                            "Mật khẩu hiện tại không đúng"
+                        result.message?.contains("requires-recent-login", ignoreCase = true) == true ->
+                            "Vui lòng đăng nhập lại để thực hiện thao tác này"
+                        else -> result.message ?: "Lỗi đổi mật khẩu"
+                    }
+                    _errorMessage.value = friendlyMessage
+                }
+                else -> {}
+            }
 
             _isLoading.value = false
         }

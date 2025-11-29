@@ -1,15 +1,37 @@
 package com.baonhutminh.multifood.data.model
 
-/**
- * Model dữ liệu bài viết trên Firestore.
- */
 data class Post(
     val id: String = "",
+
+    // Thông tin định danh (Foreign Keys)
+    val userId: String = "",
+
+    // Metadata phục vụ UI/UX
     val title: String = "",
+    val rating: Float = 0.0f,
     val content: String = "",
-    val rating: Float = 0f,
-    val address: String = "",
     val imageUrls: List<String> = emptyList(),
-    val isFavorite: Boolean = false,
-    val userId: String = ""     // ✅ thêm dòng này
+    val pricePerPerson: Int = 0,
+    val visitTimestamp: Long = 0L,
+
+    // --- CACHE DATA ---
+    val userName: String = "",
+    val userAvatarUrl: String = "",
+    val placeName: String = "",
+    val placeAddress: String = "",
+    val placeCoverImage: String = "",
+
+    // Thống kê nhanh
+    val likeCount: Int = 0,
+    val commentCount: Int = 0,
+
+    val status: PostStatus = PostStatus.PUBLISHED,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
+
+enum class PostStatus {
+    DRAFT,
+    PUBLISHED,
+    ARCHIVED
+}

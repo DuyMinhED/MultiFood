@@ -1,14 +1,25 @@
-package com.baonhutminh.multifood.ui
+package com.baonhutminh.multifood.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.baonhutminh.multifood.data.model.AppTheme
 import com.baonhutminh.multifood.ui.theme.*
 import com.baonhutminh.multifood.viewmodel.SettingsViewModel
@@ -30,7 +41,7 @@ import com.baonhutminh.multifood.viewmodel.SettingsViewModel
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit = {},
-    viewModel: SettingsViewModel = viewModel()
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val appTheme by viewModel.appTheme
     val notificationsEnabled by viewModel.notificationsEnabled
@@ -55,7 +66,7 @@ fun SettingsScreen(
                 title = { Text("Cài đặt") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 }
             )
@@ -243,7 +254,6 @@ fun SettingsScreen(
             onDismiss = { showChangePasswordDialog = false },
             onConfirm = { current, new, confirm ->
                 viewModel.changePassword(current, new, confirm)
-                showChangePasswordDialog = false
             }
         )
     }
@@ -300,6 +310,7 @@ private fun SettingsItemWithSwitch(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -382,6 +393,7 @@ private fun ThemeColorPreview(theme: AppTheme) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ThemeSelectionDialog(
     currentTheme: AppTheme,

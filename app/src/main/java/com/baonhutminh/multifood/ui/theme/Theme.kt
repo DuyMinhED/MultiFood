@@ -5,110 +5,97 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.baonhutminh.multifood.data.model.AppTheme
 
-private fun getColorScheme(theme: AppTheme, isDark: Boolean) = when (theme) {
-    AppTheme.ORANGE -> if (isDark) {
-        darkColorScheme(
-            primary = OrangeLight,
-            onPrimary = Black,
-            primaryContainer = OrangeDark,
-            onPrimaryContainer = White,
-            secondary = OrangeLight,
-            tertiary = OrangeMain
-        )
-    } else {
-        lightColorScheme(
-            primary = OrangeMain,
-            onPrimary = White,
-            primaryContainer = OrangeLight,
-            onPrimaryContainer = Black,
-            secondary = OrangeDark,
-            tertiary = OrangeLight
-        )
-    }
+private val DarkGreenColorScheme = darkColorScheme(
+    primary = GreenMain, 
+    secondary = GreenSecondary, 
+    tertiary = GreenTertiary
+)
 
-    AppTheme.BLUE -> if (isDark) {
-        darkColorScheme(
-            primary = BlueLight,
-            onPrimary = Black,
-            primaryContainer = BlueDark,
-            onPrimaryContainer = White,
-            secondary = BlueLight,
-            tertiary = BlueMain
-        )
-    } else {
-        lightColorScheme(
-            primary = BlueMain,
-            onPrimary = White,
-            primaryContainer = BlueLight,
-            onPrimaryContainer = Black,
-            secondary = BlueDark,
-            tertiary = BlueLight
-        )
-    }
+private val LightGreenColorScheme = lightColorScheme(
+    primary = GreenMain, 
+    secondary = GreenSecondary, 
+    tertiary = GreenTertiary
+)
 
-    AppTheme.GREEN -> if (isDark) {
-        darkColorScheme(
-            primary = GreenLight,
-            onPrimary = Black,
-            primaryContainer = GreenDark,
-            onPrimaryContainer = White,
-            secondary = GreenLight,
-            tertiary = GreenMain
-        )
-    } else {
-        lightColorScheme(
-            primary = GreenMain,
-            onPrimary = White,
-            primaryContainer = GreenLight,
-            onPrimaryContainer = Black,
-            secondary = GreenDark,
-            tertiary = GreenLight
-        )
-    }
+private val DarkBlueColorScheme = darkColorScheme(
+    primary = BlueMain, 
+    secondary = BlueSecondary, 
+    tertiary = BlueTertiary
+)
 
-    AppTheme.PINK -> if (isDark) {
-        darkColorScheme(
-            primary = PinkLight,
-            onPrimary = Black,
-            primaryContainer = PinkDark,
-            onPrimaryContainer = White,
-            secondary = PinkLight,
-            tertiary = PinkMain
-        )
-    } else {
-        lightColorScheme(
-            primary = PinkMain,
-            onPrimary = White,
-            primaryContainer = PinkLight,
-            onPrimaryContainer = Black,
-            secondary = PinkDark,
-            tertiary = PinkLight
-        )
-    }
-}
+private val LightBlueColorScheme = lightColorScheme(
+    primary = BlueMain, 
+    secondary = BlueSecondary, 
+    tertiary = BlueTertiary
+)
+
+private val DarkOrangeColorScheme = darkColorScheme(
+    primary = OrangeMain, 
+    secondary = OrangeSecondary, 
+    tertiary = OrangeTertiary
+)
+
+private val LightOrangeColorScheme = lightColorScheme(
+    primary = OrangeMain, 
+    secondary = OrangeSecondary, 
+    tertiary = OrangeTertiary
+)
+
+private val DarkPinkColorScheme = darkColorScheme(
+    primary = PinkMain, 
+    secondary = PinkSecondary, 
+    tertiary = PinkTertiary
+)
+
+private val LightPinkColorScheme = lightColorScheme(
+    primary = PinkMain, 
+    secondary = PinkSecondary, 
+    tertiary = PinkTertiary
+)
 
 @Composable
 fun MultiFoodTheme(
-    appTheme: AppTheme = AppTheme.ORANGE,
     darkTheme: Boolean = isSystemInDarkTheme(),
+    appTheme: AppTheme = AppTheme.ORANGE, // Default theme
+    dynamicColor: Boolean = false, // Dynamic color is available on Android 12+
     content: @Composable () -> Unit
 ) {
-    val colorScheme = getColorScheme(appTheme, darkTheme)
-    val view = LocalView.current
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> when (appTheme) {
+            AppTheme.GREEN -> DarkGreenColorScheme
+            AppTheme.BLUE -> DarkBlueColorScheme
+            AppTheme.ORANGE -> DarkOrangeColorScheme
+            AppTheme.PINK -> DarkPinkColorScheme
+        }
+        else -> when (appTheme) {
+            AppTheme.GREEN -> LightGreenColorScheme
+            AppTheme.BLUE -> LightBlueColorScheme
+            AppTheme.ORANGE -> LightOrangeColorScheme
+            AppTheme.PINK -> LightPinkColorScheme
+        }
+    }
 
+    val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
         }
     }
 
