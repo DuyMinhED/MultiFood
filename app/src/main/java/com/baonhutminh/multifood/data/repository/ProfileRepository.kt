@@ -3,14 +3,14 @@ package com.baonhutminh.multifood.data.repository
 import android.net.Uri
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.util.Resource
+import kotlinx.coroutines.flow.Flow
 
 interface ProfileRepository {
-    suspend fun getUserProfile(): Resource<UserProfile>
+    fun getUserProfile(): Flow<Resource<UserProfile?>>
     suspend fun updateDisplayName(newName: String): Resource<Unit>
     suspend fun updateBio(newBio: String): Resource<Unit>
     suspend fun uploadAvatar(imageUri: Uri): Resource<String>
-    suspend fun getUserPostsCount(): Resource<Int>
-    suspend fun getUserFavoritesCount(): Resource<Int>
     suspend fun changePassword(currentPassword: String, newPassword: String): Resource<Unit>
+    suspend fun refreshUserProfile(): Resource<Unit> // Hàm mới để buộc làm mới dữ liệu từ Firebase
 
 }

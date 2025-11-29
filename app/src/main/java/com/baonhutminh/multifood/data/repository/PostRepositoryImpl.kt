@@ -1,89 +1,102 @@
 package com.baonhutminh.multifood.data.repository
 
+import android.util.Log
+import com.baonhutminh.multifood.data.local.CommentDao
+import com.baonhutminh.multifood.data.local.PostDao
+import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.Post
-import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.util.Resource
-import com.google.firebase.firestore.FieldValue
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 class PostRepositoryImpl @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val auth: FirebaseAuth,
+    private val firestore: FirebaseFirestore,
+    private val postDao: PostDao,
+    private val commentDao: CommentDao
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
-    private val usersCollection = firestore.collection("users")
+    private val commentsCollection = firestore.collection("comments")
 
-    override suspend fun createPost(post: Post): Resource<String> {
-        return try {
-            val docRef = postsCollection.add(post).await()
-            Resource.Success(docRef.id)
-        } catch (e: Exception) {
-            Resource.Error(e.message ?: "Lỗi không xác định")
-        }
+    override fun getAllPosts(): Flow<Resource<List<Post>>> {
+        return postDao.getAllPosts().map { Resource.Success(it) }
     }
 
-    override suspend fun getAllPosts(): Resource<List<Post>> {
-        return try {
-            val snapshot = postsCollection
-                .orderBy("createdAt", Query.Direction.DESCENDING)
-                .get().await()
-
-            val posts = snapshot.documents.mapNotNull { doc ->
-                val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
-                if (post != null) {
-                    // Lấy thông tin user
-                    val userSnapshot = usersCollection.document(post.userId).get().await()
-                    val user = userSnapshot.toObject(User::class.java)
-                    post.copy(
-                        userName = user?.name ?: "Người dùng ẩn",
-                        userAvatarUrl = user?.avatarUrl ?: ""
-                    )
-                } else {
-                    null
-                }
-            }
-            Resource.Success(posts)
-        } catch (e: Exception) {
-            Resource.Error(e.message ?: "Không thể tải danh sách bài viết")
-        }
+    override fun getPostById(postId: String): Flow<Resource<Post?>> {
+        return postDao.getPostById(postId).map { Resource.Success(it) }
     }
 
-    override suspend fun getPostById(postId: String): Resource<Post> {
-        return try {
-            val doc = postsCollection.document(postId).get().await()
-            val post = doc.toObject(Post::class.java)?.copy(id = doc.id)
-            if (post != null) {
-                // Lấy thông tin user
-                val userSnapshot = usersCollection.document(post.userId).get().await()
-                val user = userSnapshot.toObject(User::class.java)
-                val finalPost = post.copy(
-                    userName = user?.name ?: "Người dùng ẩn",
-                    userAvatarUrl = user?.avatarUrl ?: ""
-                )
-                Resource.Success(finalPost)
-            } else {
-                Resource.Error("Không tìm thấy bài viết")
-            }
-        } catch (e: Exception) {
-            Resource.Error(e.message ?: "Lỗi khi tải bài viết")
-        }
+    override fun getPostsForUser(userId: String): Flow<Resource<List<Post>>> {
+        return postDao.getPostsForUser(userId).map { Resource.Success(it) }
     }
 
-    override suspend fun toggleLikePost(postId: String, userId: String, isLiked: Boolean): Resource<Unit> {
+    override fun getLikedPosts(postIds: List<String>): Flow<Resource<List<Post>>> {
+        if (postIds.isEmpty()) {
+            return kotlinx.coroutines.flow.flowOf(Resource.Success(emptyList()))
+        }
+        return postDao.getPostsByIds(postIds).map { Resource.Success(it) }
+    }
+
+    override fun getCommentsForPost(postId: String): Flow<Resource<List<Comment>>> {
+        return commentDao.getCommentsForPost(postId).map { Resource.Success(it) }
+    }
+
+    override suspend fun refreshAllPosts(): Resource<Unit> {
         return try {
-            val docRef = postsCollection.document(postId)
-            val update = if (isLiked) {
-                docRef.update("likedBy", FieldValue.arrayRemove(userId))
-            } else {
-                docRef.update("likedBy", FieldValue.arrayUnion(userId))
-            }
-            update.await()
+            val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
+            val posts = snapshot.toObjects(Post::class.java)
+            postDao.upsertAll(posts)
             Resource.Success(Unit)
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Lỗi khi thích/bỏ thích")
+            Log.e("PostRepositoryImpl", "Error refreshing posts", e)
+            Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
+        }
+    }
+
+    override suspend fun refreshCommentsForPost(postId: String): Resource<Unit> {
+        return try {
+            val snapshot = commentsCollection.whereEqualTo("reviewId", postId)
+                .orderBy("createdAt", Query.Direction.ASCENDING).get().await()
+            val comments = snapshot.toObjects(Comment::class.java)
+            commentDao.upsertAll(comments)
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.e("PostRepositoryImpl", "Error refreshing comments", e)
+            Resource.Error(e.message ?: "Lỗi làm mới bình luận")
+        }
+    }
+
+    override suspend fun createPost(post: Post): Resource<String> {
+        val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
+        return try {
+            val newPostRef = postsCollection.document()
+            val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
+            newPostRef.set(newPost).await()
+            refreshAllPosts() // Làm mới để đồng bộ lại
+            Resource.Success(newPost.id)
+        } catch (e: Exception) {
+            Log.e("PostRepositoryImpl", "Error creating post", e)
+            Resource.Error(e.message ?: "Lỗi tạo bài đăng")
+        }
+    }
+
+    override suspend fun addComment(comment: Comment): Resource<Unit> {
+        val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
+        return try {
+            val newCommentRef = commentsCollection.document()
+            val newComment = comment.copy(id = newCommentRef.id, userId = currentUser.uid)
+            newCommentRef.set(newComment).await()
+            refreshCommentsForPost(comment.reviewId) // Làm mới bình luận cho bài đăng đó
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.e("PostRepositoryImpl", "Error adding comment", e)
+            Resource.Error(e.message ?: "Lỗi thêm bình luận")
         }
     }
 }

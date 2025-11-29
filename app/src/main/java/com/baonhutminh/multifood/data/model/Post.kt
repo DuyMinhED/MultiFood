@@ -1,6 +1,24 @@
 package com.baonhutminh.multifood.data.model
 
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.PrimaryKey
+import androidx.room.TypeConverters
+
+@Entity(
+    tableName = "posts",
+    foreignKeys = [
+        ForeignKey(
+            entity = UserProfile::class,
+            parentColumns = ["id"],
+            childColumns = ["userId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
+@TypeConverters(Converters::class)
 data class Post(
+    @PrimaryKey
     val id: String = "",
 
     // Thông tin định danh (Foreign Keys)

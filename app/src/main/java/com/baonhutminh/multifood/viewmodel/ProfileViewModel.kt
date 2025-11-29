@@ -9,6 +9,7 @@ import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -33,39 +34,42 @@ class ProfileViewModel @Inject constructor(
     val successMessage: State<String?> = _successMessage
 
     init {
-        loadUserProfile()
+        observeUserProfile()
+        refreshProfile(isInitialLoad = true)
     }
 
-    fun loadUserProfile() {
+    private fun observeUserProfile() {
         viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-
-            when (val profileResult = profileRepository.getUserProfile()) {
-                is Resource.Success -> {
-                    val profile = profileResult.data
-                    var finalProfile = profile
-
-                    if (profile != null) {
-                        val postsCountResult = profileRepository.getUserPostsCount()
-                        val favoritesCountResult = profileRepository.getUserFavoritesCount()
-
-                        val postsCount = (postsCountResult as? Resource.Success)?.data ?: profile.totalPosts
-                        val favoritesCount = (favoritesCountResult as? Resource.Success)?.data ?: profile.totalFavorites
-
-                        finalProfile = profile.copy(
-                            totalPosts = postsCount,
-                            totalFavorites = favoritesCount
-                        )
+            profileRepository.getUserProfile().collect { resource ->
+                when (resource) {
+                    is Resource.Success -> {
+                        _userProfile.value = resource.data
                     }
-                    _userProfile.value = finalProfile
+                    is Resource.Error -> {
+                        if (_userProfile.value == null) { // Chỉ hiển thị lỗi nếu chưa có dữ liệu gì
+                            _errorMessage.value = resource.message ?: "Không thể tải thông tin người dùng"
+                        }
+                    }
+                    is Resource.Loading -> {
+                        // Dữ liệu đang được tải từ Room, không cần làm gì ở đây vì UI đã hiển thị dữ liệu cũ.
+                    }
                 }
-                is Resource.Error -> {
-                    _errorMessage.value = profileResult.message ?: "Không thể tải thông tin người dùng"
-                }
-                else -> {}
             }
-            _isLoading.value = false
+        }
+    }
+
+    fun refreshProfile(isInitialLoad: Boolean = false) {
+        viewModelScope.launch {
+            if (isInitialLoad) {
+                _isLoading.value = true
+            }
+            val result = profileRepository.refreshUserProfile()
+            if (result is Resource.Error) {
+                _errorMessage.value = result.message ?: "Không thể làm mới dữ liệu"
+            }
+            if (isInitialLoad) {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -81,15 +85,13 @@ class ProfileViewModel @Inject constructor(
 
             when (val result = profileRepository.updateDisplayName(newName)) {
                 is Resource.Success -> {
-                    _userProfile.value = _userProfile.value?.copy(displayName = newName)
                     _successMessage.value = "Cập nhật tên thành công"
                 }
                 is Resource.Error -> {
                     _errorMessage.value = result.message ?: "Không thể cập nhật tên"
                 }
-                else -> {}
+                else -> { /* Trạng thái Loading không cần xử lý ở đây */ }
             }
-
             _isUpdating.value = false
         }
     }
@@ -101,15 +103,13 @@ class ProfileViewModel @Inject constructor(
 
             when (val result = profileRepository.updateBio(newBio)) {
                 is Resource.Success -> {
-                    _userProfile.value = _userProfile.value?.copy(bio = newBio)
                     _successMessage.value = "Cập nhật giới thiệu thành công"
                 }
                 is Resource.Error -> {
                     _errorMessage.value = result.message ?: "Không thể cập nhật giới thiệu"
                 }
-                else -> {}
+                 else -> { /* Trạng thái Loading không cần xử lý ở đây */ }
             }
-
             _isUpdating.value = false
         }
     }
@@ -121,17 +121,13 @@ class ProfileViewModel @Inject constructor(
 
             when (val result = profileRepository.uploadAvatar(imageUri)) {
                 is Resource.Success -> {
-                    result.data?.let { newAvatarUrl ->
-                        _userProfile.value = _userProfile.value?.copy(avatarUrl = newAvatarUrl)
-                        _successMessage.value = "Cập nhật ảnh đại diện thành công"
-                    }
+                    _successMessage.value = "Cập nhật ảnh đại diện thành công"
                 }
                 is Resource.Error -> {
                     _errorMessage.value = result.message ?: "Không thể tải lên ảnh đại diện"
                 }
-                else -> {}
+                 else -> { /* Trạng thái Loading không cần xử lý ở đây */ }
             }
-
             _isUpdating.value = false
         }
     }

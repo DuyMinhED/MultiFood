@@ -5,4 +5,5 @@ plugins {
     alias(libs.plugins.compose.compiler) apply false // Bắt buộc cho Kotlin 2.0
     alias(libs.plugins.google.services) apply false
     alias(libs.plugins.hilt.android) apply false
+    alias(libs.plugins.ksp) apply false
 }
