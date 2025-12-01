@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
+import java.util.Date
 
 /**
  * Đại diện cho một bài đăng được lưu trong cơ sở dữ liệu Room.
@@ -43,6 +44,8 @@ data class PostEntity(
     val commentCount: Int = 0,
 
     val status: PostStatus = PostStatus.PUBLISHED,
-    val createdAt: Long = 0L,
-    val updatedAt: Long = 0L
+    
+    // Sửa kiểu dữ liệu
+    val createdAt: Date? = null,
+    val updatedAt: Date? = null
 )

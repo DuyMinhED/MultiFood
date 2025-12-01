@@ -50,7 +50,7 @@ fun PostItemCard(
     isLiked: Boolean,
     onLikeClick: (String) -> Unit,
     onItemClick: (String) -> Unit,
-    currentUserProfile: UserProfile? = null, // <-- Thêm tham số mới
+    currentUserProfile: UserProfile? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -229,7 +229,6 @@ fun PostItemCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // --- PHẦN ĐƯỢC CẬP NHẬT ---
                 val isMyPost = currentUserProfile?.id == post.userId
                 val authorName = if (isMyPost) currentUserProfile?.name else post.userName
                 val authorAvatar = if (isMyPost) currentUserProfile?.avatarUrl else post.userAvatarUrl
@@ -262,7 +261,7 @@ fun PostItemCard(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = formatRelativeTime(post.createdAt),
+                                text = formatRelativeTime(post.createdAt?.time ?: 0L), // <-- Sửa ở đây
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

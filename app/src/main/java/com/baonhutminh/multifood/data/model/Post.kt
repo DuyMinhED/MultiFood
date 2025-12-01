@@ -30,9 +30,9 @@ data class Post(
     val status: PostStatus = PostStatus.PUBLISHED,
 
     @ServerTimestamp
-    val createdAt: Date? = null,
+    var createdAt: Date? = null, // Sửa thành var và Date?
     @ServerTimestamp
-    val updatedAt: Date? = null
+    var updatedAt: Date? = null  // Sửa thành var và Date?
 )
 
 enum class PostStatus {

@@ -6,6 +6,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
+import java.util.Date
 import javax.inject.Inject
 
 class CommentRepositoryImpl @Inject constructor(
@@ -32,11 +33,11 @@ class CommentRepositoryImpl @Inject constructor(
     override suspend fun createComment(comment: Comment): Resource<String> {
         return try {
             val document = commentCollection.document()
-            val timestamp = System.currentTimeMillis()
+            // Sửa ở đây: Sử dụng Date() thay vì System.currentTimeMillis()
             val payload = comment.copy(
                 id = document.id,
-                createdAt = timestamp,
-                updatedAt = timestamp
+                createdAt = Date(),
+                updatedAt = Date()
             )
             
             // Tạo comment và update commentCount trong cùng một transaction
@@ -109,5 +110,3 @@ class CommentRepositoryImpl @Inject constructor(
         }
     }
 }
-
-

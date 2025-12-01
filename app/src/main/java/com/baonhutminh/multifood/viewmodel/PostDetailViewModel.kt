@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Date
 import javax.inject.Inject
 
 data class PostDetailUiState(
@@ -105,21 +106,20 @@ class PostDetailViewModel @Inject constructor(
             val newComment = Comment(
                 reviewId = postId,
                 content = commentText,
-                createdAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis(),
+                createdAt = Date(), // Sửa ở đây
+                updatedAt = Date(), // Sửa ở đây
                 userName = user.name,
                 userAvatarUrl = user.avatarUrl ?: ""
             )
 
             when (val result = postRepository.addComment(newComment)) {
                 is Resource.Success -> {
-                    // Gọi refresh tường minh sau khi thêm thành công
                     postRepository.refreshCommentsForPost(postId)
                 }
                 is Resource.Error -> {
                     _viewModel_state.update {
                         it.copy(
-                            commentInput = commentText, // Trả lại text để người dùng sửa
+                            commentInput = commentText,
                             errorMessage = result.message ?: "Lỗi không xác định"
                         )
                     }

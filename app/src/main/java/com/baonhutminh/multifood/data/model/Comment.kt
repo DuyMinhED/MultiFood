@@ -4,12 +4,13 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
+import java.util.Date
 
 @Entity(
     tableName = "comments",
     foreignKeys = [
         ForeignKey(
-            entity = PostEntity::class, // <-- Đã cập nhật
+            entity = PostEntity::class,
             parentColumns = ["id"],
             childColumns = ["reviewId"],
             onDelete = ForeignKey.CASCADE
@@ -36,6 +37,6 @@ data class Comment(
     val imageUrls: List<String> = emptyList(),
     val likeCount: Int = 0,
     val flagged: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val createdAt: Date? = null, // Sửa ở đây
+    val updatedAt: Date? = null  // Sửa ở đây
 )

@@ -73,7 +73,7 @@ fun HomeScreen(
                 }
             }
 
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.weight(1f).align(Alignment.CenterHorizontally)) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),

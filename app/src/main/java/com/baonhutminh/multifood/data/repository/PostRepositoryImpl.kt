@@ -9,6 +9,7 @@ import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
@@ -28,6 +29,7 @@ class PostRepositoryImpl @Inject constructor(
 
     private val postsCollection = firestore.collection("posts")
     private val commentsCollection = firestore.collection("comments")
+    private val usersCollection = firestore.collection("users")
 
     override fun getAllPosts(): Flow<Resource<List<PostEntity>>> {
         return postDao.getAllPosts().map { Resource.Success(it) }
@@ -81,11 +83,20 @@ class PostRepositoryImpl @Inject constructor(
     override suspend fun createPost(post: Post): Resource<String> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
         return try {
-            val newPostRef = postsCollection.document()
-            val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
-            newPostRef.set(newPost).await()
-            refreshAllPosts()
-            Resource.Success(newPost.id)
+            val newPostId = firestore.runTransaction {
+                transaction ->
+                val newPostRef = postsCollection.document()
+                val userRef = usersCollection.document(currentUser.uid)
+
+                val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
+
+                transaction.set(newPostRef, newPost)
+                transaction.update(userRef, "postCount", FieldValue.increment(1))
+
+                newPostRef.id
+            }.await()
+
+            Resource.Success(newPostId)
         } catch (e: Exception) {
             Log.e("PostRepositoryImpl", "Error creating post", e)
             Resource.Error(e.message ?: "Lỗi tạo bài đăng")
@@ -98,7 +109,6 @@ class PostRepositoryImpl @Inject constructor(
             val newCommentRef = commentsCollection.document()
             val newComment = comment.copy(id = newCommentRef.id, userId = currentUser.uid)
             newCommentRef.set(newComment).await()
-            // Đã xóa refreshCommentsForPost(comment.reviewId)
             Resource.Success(Unit)
         } catch (e: Exception) {
             Log.e("PostRepositoryImpl", "Error adding comment", e)
@@ -139,7 +149,7 @@ fun Post.toEntity(): PostEntity {
         likeCount = this.likeCount,
         commentCount = this.commentCount,
         status = this.status,
-        createdAt = this.createdAt?.time ?: 0L,
-        updatedAt = this.updatedAt?.time ?: 0L
+        createdAt = this.createdAt, // <-- Sửa ở đây
+        updatedAt = this.updatedAt  // <-- Sửa ở đây
     )
 }

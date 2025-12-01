@@ -25,17 +25,15 @@ class CreatePostViewModel @Inject constructor(
     // Trạng thái cho các trường nhập liệu
     val title = mutableStateOf("")
     val content = mutableStateOf("")
-    val rating = mutableStateOf(0f) // -> Sửa thành Float
+    val rating = mutableStateOf(0f)
     val pricePerPerson = mutableStateOf("")
     val placeName = mutableStateOf("")
     val placeAddress = mutableStateOf("")
     val imageUris = mutableStateOf<List<Uri>>(emptyList())
 
-    // Trạng thái của quá trình tạo bài đăng
     private val _uiState = mutableStateOf<CreatePostUiState>(CreatePostUiState.Idle)
     val uiState = _uiState
 
-    // Sự kiện để điều hướng hoặc hiển thị thông báo
     private val _events = MutableSharedFlow<CreatePostEvent>()
     val events = _events.asSharedFlow()
 
@@ -47,7 +45,6 @@ class CreatePostViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = CreatePostUiState.Loading
 
-            // 1. Tải thông tin người dùng hiện tại
             val userProfileResource = profileRepository.getUserProfile().first()
             if (userProfileResource !is Resource.Success || userProfileResource.data == null) {
                 _uiState.value = CreatePostUiState.Error("Không thể lấy thông tin người dùng.")
@@ -55,7 +52,6 @@ class CreatePostViewModel @Inject constructor(
             }
             val user = userProfileResource.data
 
-            // 2. Tải ảnh lên Storage và lấy URLs
             val imageUrls = mutableListOf<String>()
             for (uri in imageUris.value) {
                 when (val result = postRepository.uploadPostImage(uri)) {
@@ -68,12 +64,11 @@ class CreatePostViewModel @Inject constructor(
                 }
             }
 
-            // 3. Tạo đối tượng Post
             val post = Post(
                 title = title.value,
                 content = content.value,
-                rating = rating.value, // -> Giờ đã là Float
-                pricePerPerson = pricePerPerson.value.toIntOrNull() ?: 0, // -> Sửa thành Int
+                rating = rating.value,
+                pricePerPerson = pricePerPerson.value.toIntOrNull() ?: 0,
                 placeName = placeName.value,
                 placeAddress = placeAddress.value,
                 imageUrls = imageUrls,
@@ -83,9 +78,12 @@ class CreatePostViewModel @Inject constructor(
                 updatedAt = Date()
             )
 
-            // 4. Gọi repository để tạo bài đăng
             when (val result = postRepository.createPost(post)) {
                 is Resource.Success -> {
+                    // Làm mới cả hai nguồn dữ liệu
+                    profileRepository.refreshUserProfile()
+                    postRepository.refreshAllPosts()
+                    
                     _uiState.value = CreatePostUiState.Success
                     _events.emit(CreatePostEvent.NavigateBack)
                 }
@@ -98,7 +96,6 @@ class CreatePostViewModel @Inject constructor(
     }
 }
 
-// Trạng thái UI
 sealed class CreatePostUiState {
     object Idle : CreatePostUiState()
     object Loading : CreatePostUiState()
@@ -106,7 +103,6 @@ sealed class CreatePostUiState {
     data class Error(val message: String) : CreatePostUiState()
 }
 
-// Sự kiện điều hướng
 sealed class CreatePostEvent {
     object NavigateBack : CreatePostEvent()
 }

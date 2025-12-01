@@ -52,7 +52,7 @@ fun CommentItem(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = formatRelativeTime(comment.createdAt), // Sửa ở đây
+                    text = formatRelativeTime(comment.createdAt?.time ?: 0L), // Sửa ở đây
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

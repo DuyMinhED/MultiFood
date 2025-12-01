@@ -25,7 +25,9 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-        .fallbackToDestructiveMigration() // Thêm dòng này
+        // Sử dụng giải pháp này để tự động tạo lại DB khi có thay đổi cấu trúc
+        // trong giai đoạn phát triển. Sẽ thay bằng migration thủ công khi phát hành.
+        .fallbackToDestructiveMigration()
         .build()
     }
 
