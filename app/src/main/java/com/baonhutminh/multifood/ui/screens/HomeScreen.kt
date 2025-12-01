@@ -1,6 +1,5 @@
 package com.baonhutminh.multifood.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -89,7 +88,7 @@ fun HomeScreen(
                     )
                 } else {
                     LazyColumn(
-                        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp), // Thêm padding dưới để không bị che bởi FAB
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(uiState.posts, key = { it.id }) { post ->
@@ -98,7 +97,8 @@ fun HomeScreen(
                                 post = post,
                                 isLiked = isLiked,
                                 onLikeClick = { viewModel.toggleLike(post.id) },
-                                onItemClick = { onDetailClick(post.id) }
+                                onItemClick = { onDetailClick(post.id) },
+                                currentUserProfile = uiState.userProfile // <-- Đã thêm
                             )
                         }
                     }

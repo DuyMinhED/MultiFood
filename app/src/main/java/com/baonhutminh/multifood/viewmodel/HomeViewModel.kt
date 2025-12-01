@@ -8,6 +8,7 @@ import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -37,6 +38,7 @@ class HomeViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
 
     // Lấy danh sách bài đăng dựa trên tab được chọn
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val postsFlow = _selectedTab.flatMapLatest { tab ->
         when (tab) {
             PostFilterTab.ALL -> postRepository.getAllPosts()
@@ -74,7 +76,15 @@ class HomeViewModel @Inject constructor(
     )
 
     init {
-        refreshPosts(isInitialLoad = true)
+        viewModelScope.launch {
+            // Tạm dừng và chờ đợi giá trị đầu tiên từ postsFlow (đọc từ Room)
+            val initialPostsResult = postsFlow.first()
+
+            // Chỉ refresh nếu kết quả đọc từ Room là rỗng
+            if ((initialPostsResult as? Resource.Success)?.data.isNullOrEmpty()) {
+                refreshPosts(isInitialLoad = true)
+            }
+        }
     }
 
     fun onTabSelected(tab: PostFilterTab) {

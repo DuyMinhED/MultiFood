@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.baonhutminh.multifood.data.model.PostEntity
+import com.baonhutminh.multifood.data.model.UserProfile
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -49,6 +50,7 @@ fun PostItemCard(
     isLiked: Boolean,
     onLikeClick: (String) -> Unit,
     onItemClick: (String) -> Unit,
+    currentUserProfile: UserProfile? = null, // <-- Thêm tham số mới
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -63,7 +65,6 @@ fun PostItemCard(
         )
     ) {
         Column {
-            // Image with overlay rating badge (if available)
             if (post.imageUrls.isNotEmpty()) {
                 Box {
                     AsyncImage(
@@ -75,7 +76,6 @@ fun PostItemCard(
                         contentScale = ContentScale.Crop
                     )
 
-                    // Rating Badge Overlay
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -103,7 +103,6 @@ fun PostItemCard(
                         }
                     }
 
-                    // Image count indicator (if more than 1 image)
                     if (post.imageUrls.size > 1) {
                         Surface(
                             modifier = Modifier
@@ -124,9 +123,7 @@ fun PostItemCard(
                 }
             }
 
-            // Content Section
             Column(modifier = Modifier.padding(16.dp)) {
-                // Restaurant Name & Title
                 Text(
                     text = post.placeName,
                     style = MaterialTheme.typography.titleLarge,
@@ -138,7 +135,6 @@ fun PostItemCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Post Title
                 Text(
                     text = post.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -150,7 +146,6 @@ fun PostItemCard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Address (if no image, show rating here)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -176,7 +171,6 @@ fun PostItemCard(
                         )
                     }
 
-                    // Show rating here if no image
                     if (post.imageUrls.isEmpty()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -198,7 +192,6 @@ fun PostItemCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Post Content Preview
                 Text(
                     text = post.content,
                     style = MaterialTheme.typography.bodyMedium,
@@ -207,7 +200,6 @@ fun PostItemCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Price Info (if available)
                 if (post.pricePerPerson > 0) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Surface(
@@ -237,19 +229,22 @@ fun PostItemCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Footer: User Info & Like Button
+                // --- PHẦN ĐƯỢC CẬP NHẬT ---
+                val isMyPost = currentUserProfile?.id == post.userId
+                val authorName = if (isMyPost) currentUserProfile?.name else post.userName
+                val authorAvatar = if (isMyPost) currentUserProfile?.avatarUrl else post.userAvatarUrl
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // User Info
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         AsyncImage(
-                            model = post.userAvatarUrl,
+                            model = authorAvatar ?: "",
                             contentDescription = "User Avatar",
                             modifier = Modifier
                                 .size(32.dp)
@@ -259,7 +254,7 @@ fun PostItemCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = post.userName,
+                                text = authorName ?: "",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -274,7 +269,6 @@ fun PostItemCard(
                         }
                     }
 
-                    // Like Button
                     Surface(
                         shape = CircleShape,
                         color = if (isLiked)
@@ -300,12 +294,10 @@ fun PostItemCard(
     }
 }
 
-// Helper function to format price
 private fun formatPrice(price: Int): String {
     return NumberFormat.getNumberInstance(Locale("vi", "VN")).format(price) + "đ"
 }
 
-// Helper function to format relative time
 private fun formatRelativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
