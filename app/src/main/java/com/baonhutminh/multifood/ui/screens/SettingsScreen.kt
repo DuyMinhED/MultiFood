@@ -371,7 +371,7 @@ fun SettingsScreen(
     }
 }
 
-// --- Các hàm Component con bên dưới được giữ nguyên ---
+
 
 @Composable
 private fun SettingsItem(
