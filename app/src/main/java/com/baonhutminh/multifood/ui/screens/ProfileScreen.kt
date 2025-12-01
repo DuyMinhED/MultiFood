@@ -21,10 +21,37 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,7 +74,7 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
     onNavigateToSettings: () -> Unit = {},
     onLogout: () -> Unit = {},
-    onClickHome:()->Unit,
+    onClickHome: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userProfile by viewModel.userProfile
@@ -60,14 +87,18 @@ fun ProfileScreen(
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
+    // Thêm biến state mới từ code cập nhật
+    var showHelpDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { viewModel.uploadAvatar(it) }
     }
 
-    LaunchedEffect(successMessage, errorMessage) {
-        if (successMessage != null || errorMessage != null) {
+    LaunchedEffect(successMessage) {
+        if (successMessage != null) {
             kotlinx.coroutines.delay(2000)
             viewModel.clearMessages()
         }
@@ -75,9 +106,11 @@ fun ProfileScreen(
 
     Scaffold(
         topBar = {
+            //  AppTopBar của dự án
             AppTopBar(Screen.Profile)
         },
         bottomBar = {
+            //  AppBottomBar của dự án
             AppBottomBar(
                 onClickHome = onClickHome,
                 onAccountClick = {},
@@ -102,6 +135,7 @@ fun ProfileScreen(
                         .padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // --- Phần Avatar ---
                     Box(
                         modifier = Modifier
                             .size(120.dp)
@@ -151,6 +185,7 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // --- Phần Tên ---
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -177,6 +212,7 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // --- Phần Bio ---
                     if (userProfile?.bio?.isNotEmpty() == true) {
                         Text(
                             text = userProfile?.bio ?: "",
@@ -201,10 +237,12 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
+                    // --- Thống kê ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
+
                         StatCard(
                             icon = Icons.Default.Article,
                             count = userProfile?.postCount ?: 0,
@@ -219,6 +257,7 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(32.dp))
 
+                    // --- Menu Chức Năng ---
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp)
@@ -233,13 +272,13 @@ fun ProfileScreen(
                             ProfileMenuItem(
                                 icon = Icons.Default.Help,
                                 title = "Trợ giúp & Hỗ trợ",
-                                onClick = { }
+                                onClick = { showHelpDialog = true } // Đã thêm logic
                             )
                             HorizontalDivider()
                             ProfileMenuItem(
                                 icon = Icons.Default.Info,
                                 title = "Về ứng dụng",
-                                onClick = { }
+                                onClick = { showAboutDialog = true } // Đã thêm logic
                             )
                             HorizontalDivider()
                             ProfileMenuItem(
@@ -255,43 +294,31 @@ fun ProfileScreen(
                 }
             }
 
-            val currentSuccessMessage = successMessage
-            if (currentSuccessMessage != null) {
-                Surface(
+            // --- Hiển thị thông báo
+            successMessage?.let { message ->
+                Snackbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(8.dp),
-                    tonalElevation = 4.dp
+                        .padding(16.dp)
                 ) {
-                    Text(
-                        text = currentSuccessMessage,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Text(message)
                 }
             }
 
-            val currentErrorMessage = errorMessage
-            if (currentErrorMessage != null) {
-                Surface(
+            errorMessage?.let { message ->
+                Snackbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(16.dp),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(8.dp),
-                    tonalElevation = 4.dp
+                    containerColor = MaterialTheme.colorScheme.errorContainer
                 ) {
-                    Text(
-                        text = currentErrorMessage,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
+                    Text(message, color = MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
         }
     }
+
+    // --- Các Dialog ---
 
     if (showEditNameDialog) {
         EditTextDialog(
@@ -299,7 +326,7 @@ fun ProfileScreen(
             currentValue = userProfile?.name ?: "",
             onDismiss = { showEditNameDialog = false },
             onConfirm = { newName ->
-                viewModel.updateName(newName)
+                viewModel.updateName(newName) // Check lại hàm trong ViewModel
                 showEditNameDialog = false
             }
         )
@@ -336,6 +363,73 @@ fun ProfileScreen(
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
                     Text("Hủy")
+                }
+            }
+        )
+    }
+
+    // Dialog mới thêm
+    if (showHelpDialog) {
+        AlertDialog(
+            onDismissRequest = { showHelpDialog = false },
+            title = { Text("Trợ giúp & Hỗ trợ") },
+            text = {
+                Column {
+                    Text(
+                        text = "Liên hệ hỗ trợ:",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Email: multifood@gmail.com")
+                    Text("Hotline: 082-741-0398")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Câu hỏi thường gặp:",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("• Làm sao để đăng bài review?")
+                    Text("• Làm sao để thay đổi mật khẩu?")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelpDialog = false }) {
+                    Text("Đóng")
+                }
+            }
+        )
+    }
+
+    // Dialog mới thêm
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { Text("Về ứng dụng") },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "MultiFood",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Phiên bản 1.0.0", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Ứng dụng review đồ ăn hàng đầu Việt Nam.",
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) {
+                    Text("Đóng")
                 }
             }
         )
@@ -390,9 +484,8 @@ private fun ProfileMenuItem(
     icon: ImageVector,
     title: String,
     onClick: () -> Unit,
-    tint: Color = Color.Unspecified
+    tint: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    val color = if (tint == Color.Unspecified) MaterialTheme.colorScheme.onSurface else tint
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -403,14 +496,14 @@ private fun ProfileMenuItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = color,
+            tint = tint,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
-            color = color,
+            color = tint,
             modifier = Modifier.weight(1f)
         )
         Icon(
