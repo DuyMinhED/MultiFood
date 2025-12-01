@@ -81,7 +81,7 @@ fun ProfileScreen(
             AppBottomBar(
                 onClickHome = onClickHome,
                 onAccountClick = {},
-                _selectehome = false
+                isHomeSelected = false
             )
         }
     ) { innerPadding ->

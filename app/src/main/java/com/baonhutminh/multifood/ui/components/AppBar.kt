@@ -44,14 +44,14 @@ fun AppTopBar(screen: Screen) {
 fun AppBottomBar(
     onClickHome: () -> Unit,
     onAccountClick: () -> Unit,
-    _selectehome: Boolean = true
+    isHomeSelected: Boolean = true
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp
     ) {
         NavigationBarItem(
-            selected =_selectehome ,
+            selected = isHomeSelected,
             onClick = onClickHome,
             icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
             label = {
@@ -67,7 +67,7 @@ fun AppBottomBar(
         )
 
         NavigationBarItem(
-            selected = !_selectehome,
+            selected = !isHomeSelected,
             onClick = onAccountClick,
             icon = { Icon(Icons.Outlined.Person, contentDescription = "Account") },
             label = {
