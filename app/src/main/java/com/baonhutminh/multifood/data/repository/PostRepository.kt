@@ -1,5 +1,6 @@
 package com.baonhutminh.multifood.data.repository
 
+import android.net.Uri
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.Post // DTO
 import com.baonhutminh.multifood.data.model.PostEntity
@@ -25,5 +26,7 @@ interface PostRepository {
     suspend fun createPost(post: Post): Resource<String> // Nhận vào DTO
 
     suspend fun addComment(comment: Comment): Resource<Unit>
+
+    suspend fun uploadPostImage(imageUri: Uri): Resource<String>
 
 }

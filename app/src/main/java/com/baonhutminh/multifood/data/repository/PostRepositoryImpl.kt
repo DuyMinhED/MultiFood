@@ -1,5 +1,6 @@
 package com.baonhutminh.multifood.data.repository
 
+import android.net.Uri
 import android.util.Log
 import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.local.PostDao
@@ -10,14 +11,17 @@ import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 import javax.inject.Inject
 
 class PostRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
+    private val storage: FirebaseStorage,
     private val postDao: PostDao,
     private val commentDao: CommentDao
 ) : PostRepository {
@@ -52,7 +56,6 @@ class PostRepositoryImpl @Inject constructor(
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
-            // Ánh xạ từ List<Post> (DTO) sang List<PostEntity>
             val postEntities = postDTOs.map { it.toEntity() }
             postDao.upsertAll(postEntities)
             Resource.Success(Unit)
@@ -102,9 +105,22 @@ class PostRepositoryImpl @Inject constructor(
             Resource.Error(e.message ?: "Lỗi thêm bình luận")
         }
     }
+
+    override suspend fun uploadPostImage(imageUri: Uri): Resource<String> {
+        auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
+        return try {
+            val imageId = UUID.randomUUID().toString()
+            val storageRef = storage.reference.child("post_images/$imageId.jpg")
+            storageRef.putFile(imageUri).await()
+            val downloadUrl = storageRef.downloadUrl.await().toString()
+            Resource.Success(downloadUrl)
+        } catch (e: Exception) {
+            Log.e("PostRepositoryImpl", "Error uploading post image", e)
+            Resource.Error(e.message ?: "Lỗi tải ảnh bài đăng lên")
+        }
+    }
 }
 
-// Hàm mở rộng để ánh xạ từ DTO sang Entity
 fun Post.toEntity(): PostEntity {
     return PostEntity(
         id = this.id,

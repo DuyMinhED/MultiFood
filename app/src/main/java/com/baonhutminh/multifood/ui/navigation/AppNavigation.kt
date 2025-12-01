@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.baonhutminh.multifood.ui.screens.CreatePostScreen
 import com.baonhutminh.multifood.ui.screens.LoginScreen
 import com.baonhutminh.multifood.ui.screens.SignUpScreen
 import com.baonhutminh.multifood.ui.screens.HomeScreen
@@ -84,6 +85,7 @@ fun AppNavigation() {
         }
 
         composable(Screen.CreatePost.route) {
+            CreatePostScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(Screen.Settings.route) {
