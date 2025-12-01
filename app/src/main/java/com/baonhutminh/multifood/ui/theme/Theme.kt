@@ -9,13 +9,44 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val LightOrangeColorScheme = lightColorScheme(
+// Extended color scheme for semantic colors
+data class ExtendedColors(
+    val ratingYellow: Color,
+    val priceGreen: Color,
+    val likeRed: Color,
+    val successGreen: Color,
+    val warningOrange: Color,
+    val gradientOrange: Brush,
+    val gradientBrown: Brush
+)
+
+private val LocalExtendedColors = staticCompositionLocalOf {
+    ExtendedColors(
+        ratingYellow = RatingYellow,
+        priceGreen = PriceGreen,
+        likeRed = LikeRed,
+        successGreen = SuccessGreen,
+        warningOrange = WarningOrange,
+        gradientOrange = Brush.horizontalGradient(
+            colors = listOf(GradientOrangeStart, GradientOrangeEnd)
+        ),
+        gradientBrown = Brush.horizontalGradient(
+            colors = listOf(GradientBrownStart, GradientBrownEnd)
+        )
+    )
+}
+
+private val LightColorScheme = lightColorScheme(
     primary = md_theme_light_primary,
     onPrimary = md_theme_light_onPrimary,
     primaryContainer = md_theme_light_primaryContainer,
@@ -39,15 +70,15 @@ private val LightOrangeColorScheme = lightColorScheme(
     surfaceVariant = md_theme_light_surfaceVariant,
     onSurfaceVariant = md_theme_light_onSurfaceVariant,
     outline = md_theme_light_outline,
-    inverseOnSurface = md_theme_light_inverseOnSurface,
-    inverseSurface = md_theme_light_inverseSurface,
-    inversePrimary = md_theme_light_inversePrimary,
-    surfaceTint = md_theme_light_surfaceTint,
     outlineVariant = md_theme_light_outlineVariant,
     scrim = md_theme_light_scrim,
+    inverseSurface = md_theme_light_inverseSurface,
+    inverseOnSurface = md_theme_light_inverseOnSurface,
+    inversePrimary = md_theme_light_inversePrimary,
+    surfaceTint = md_theme_light_surfaceTint
 )
 
-private val DarkOrangeColorScheme = darkColorScheme(
+private val DarkColorScheme = darkColorScheme(
     primary = md_theme_dark_primary,
     onPrimary = md_theme_dark_onPrimary,
     primaryContainer = md_theme_dark_primaryContainer,
@@ -71,19 +102,46 @@ private val DarkOrangeColorScheme = darkColorScheme(
     surfaceVariant = md_theme_dark_surfaceVariant,
     onSurfaceVariant = md_theme_dark_onSurfaceVariant,
     outline = md_theme_dark_outline,
-    inverseOnSurface = md_theme_dark_inverseOnSurface,
-    inverseSurface = md_theme_dark_inverseSurface,
-    inversePrimary = md_theme_dark_inversePrimary,
-    surfaceTint = md_theme_dark_surfaceTint,
     outlineVariant = md_theme_dark_outlineVariant,
     scrim = md_theme_dark_scrim,
+    inverseSurface = md_theme_dark_inverseSurface,
+    inverseOnSurface = md_theme_dark_inverseOnSurface,
+    inversePrimary = md_theme_dark_inversePrimary,
+    surfaceTint = md_theme_dark_surfaceTint
 )
 
+private val LightExtendedColors = ExtendedColors(
+    ratingYellow = RatingYellow,
+    priceGreen = PriceGreen,
+    likeRed = LikeRed,
+    successGreen = SuccessGreen,
+    warningOrange = WarningOrange,
+    gradientOrange = Brush.horizontalGradient(
+        colors = listOf(GradientOrangeStart, GradientOrangeEnd)
+    ),
+    gradientBrown = Brush.horizontalGradient(
+        colors = listOf(GradientBrownStart, GradientBrownEnd)
+    )
+)
+
+private val DarkExtendedColors = ExtendedColors(
+    ratingYellow = RatingYellowDark,
+    priceGreen = PriceGreenDark,
+    likeRed = LikeRedDark,
+    successGreen = SuccessGreenDark,
+    warningOrange = WarningOrangeDark,
+    gradientOrange = Brush.horizontalGradient(
+        colors = listOf(md_theme_dark_primary, Color(0xFFFF8A65))
+    ),
+    gradientBrown = Brush.horizontalGradient(
+        colors = listOf(md_theme_dark_secondary, Color(0xFF795548))
+    )
+)
 
 @Composable
 fun MultiFoodTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Dynamic color is available on Android 12+
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -91,10 +149,11 @@ fun MultiFoodTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
-        darkTheme -> DarkOrangeColorScheme
-        else -> LightOrangeColorScheme
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
     }
+
+    val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -105,10 +164,19 @@ fun MultiFoodTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = Shapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalExtendedColors provides extendedColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = Shapes,
+            content = content
+        )
+    }
+}
+
+// Extension property to access extended colors easily
+object MultiFoodThemeExtended {
+    val colorScheme: ExtendedColors
+        @Composable
+        get() = LocalExtendedColors.current
 }

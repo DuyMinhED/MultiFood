@@ -2,57 +2,135 @@ package com.baonhutminh.multifood.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+// Nếu bạn có custom fonts, import như sau:
+// val InterFontFamily = FontFamily(
+//     Font(R.font.inter_regular, FontWeight.Normal),
+//     Font(R.font.inter_medium, FontWeight.Medium),
+//     Font(R.font.inter_semibold, FontWeight.SemiBold),
+//     Font(R.font.inter_bold, FontWeight.Bold)
+// )
+
+// Sử dụng Default font nếu chưa có custom font
+private val DefaultFontFamily = FontFamily.Default
+
 val Typography = Typography(
-    // Tiêu đề lớn (Tên app, Tên quán ăn trong trang chi tiết)
+    // Display - For hero titles, splash screens
+    displayLarge = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 57.sp,
+        lineHeight = 64.sp,
+        letterSpacing = (-0.25).sp
+    ),
+    displayMedium = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 45.sp,
+        lineHeight = 52.sp,
+        letterSpacing = 0.sp
+    ),
+    displaySmall = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Headline - For section headers, important titles
+    headlineLarge = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
+        letterSpacing = 0.sp
+    ),
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DefaultFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
         lineHeight = 36.sp,
         letterSpacing = 0.sp
     ),
-    // Tiêu đề vừa (Tên quán trong danh sách)
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+    headlineSmall = TextStyle(
+        fontFamily = DefaultFontFamily,
         fontWeight = FontWeight.SemiBold,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+        letterSpacing = 0.sp
+    ),
+
+    // Title - For card titles, dialog titles
+    titleLarge = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp
     ),
-    // Tiêu đề nhỏ (Tên người review)
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 18.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.15.sp
     ),
-    // Nội dung chính (Đoạn review)
+    titleSmall = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.1.sp
+    ),
+
+    // Body - For main content text
+    bodyLarge = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DefaultFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.25.sp
     ),
-    // Chữ nhỏ (Ngày tháng, địa chỉ phụ)
     bodySmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DefaultFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.4.sp
     ),
-    // Chữ trên nút bấm (Button text)
+
+    // Label - For buttons, chips, captions
     labelLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold, // Nút bấm nên in đậm
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    ),
+    labelSmall = TextStyle(
+        fontFamily = DefaultFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
     )
 )
