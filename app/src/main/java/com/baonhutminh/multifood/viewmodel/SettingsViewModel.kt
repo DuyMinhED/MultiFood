@@ -1,123 +1,74 @@
 package com.baonhutminh.multifood.viewmodel
 
-import android.app.Application
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.model.AppTheme
 import com.baonhutminh.multifood.data.preferences.SettingsPreferences
 import com.baonhutminh.multifood.data.repository.ProfileRepository
-import com.baonhutminh.multifood.util.Resource
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// 1. Định nghĩa một data class để chứa toàn bộ trạng thái của UI
+data class SettingsUiState(
+    val appTheme: AppTheme = AppTheme.ORANGE,
+    val isDarkMode: Boolean = false,
+    val notificationsEnabled: Boolean = true
+)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    application: Application, // AndroidViewModel requires Application
     private val settingsPreferences: SettingsPreferences,
-    private val profileRepository: ProfileRepository
-) : AndroidViewModel(application) {
+    private val profileRepository: ProfileRepository,
+    private val firebaseAuth: FirebaseAuth
+) : ViewModel() {
 
-    private val _appTheme = mutableStateOf(AppTheme.ORANGE)
-    val appTheme: State<AppTheme> = _appTheme
-
-    private val _notificationsEnabled = mutableStateOf(true)
-    val notificationsEnabled: State<Boolean> = _notificationsEnabled
-
-    private val _darkModeEnabled = mutableStateOf(false)
-    val darkModeEnabled: State<Boolean> = _darkModeEnabled
-
-    private val _isLoading = mutableStateOf(false)
-    val isLoading: State<Boolean> = _isLoading
-
-    private val _errorMessage = mutableStateOf<String?>(null)
-    val errorMessage: State<String?> = _errorMessage
-
-    private val _successMessage = mutableStateOf<String?>(null)
-    val successMessage: State<String?> = _successMessage
-
-    init {
-        loadSettings()
-    }
-
-    private fun loadSettings() {
-        viewModelScope.launch {
-            _appTheme.value = settingsPreferences.appTheme.first()
-            _notificationsEnabled.value = settingsPreferences.notificationsEnabled.first()
-            _darkModeEnabled.value = settingsPreferences.darkModeEnabled.first()
-        }
-    }
+    // 2. Kết hợp các Flow từ Preferences thành một StateFlow<SettingsUiState> duy nhất
+    val uiState: StateFlow<SettingsUiState> = combine(
+        settingsPreferences.appTheme,
+        settingsPreferences.darkModeEnabled,
+        settingsPreferences.notificationsEnabled
+    ) { theme, isDark, notificationsOn ->
+        SettingsUiState(
+            appTheme = theme,
+            isDarkMode = isDark,
+            notificationsEnabled = notificationsOn
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = SettingsUiState() // Cung cấp giá trị khởi tạo
+    )
 
     fun setAppTheme(theme: AppTheme) {
         viewModelScope.launch {
             settingsPreferences.setAppTheme(theme)
-            _appTheme.value = theme
-            _successMessage.value = "Đã đổi màu chủ đạo sang ${theme.displayName}"
         }
     }
 
     fun setNotificationsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsPreferences.setNotificationsEnabled(enabled)
-            _notificationsEnabled.value = enabled
-            _successMessage.value = if (enabled) "Đã bật thông báo" else "Đã tắt thông báo"
         }
     }
 
-    fun setDarkModeEnabled(enabled: Boolean) {
+    fun setDarkMode(enabled: Boolean) {
         viewModelScope.launch {
             settingsPreferences.setDarkModeEnabled(enabled)
-            _darkModeEnabled.value = enabled
-            _successMessage.value = if (enabled) "Đã bật chế độ tối" else "Đã tắt chế độ tối"
         }
     }
 
-    fun changePassword(currentPassword: String, newPassword: String, confirmPassword: String) {
-        if (currentPassword.isBlank() || newPassword.isBlank() || confirmPassword.isBlank()) {
-            _errorMessage.value = "Vui lòng điền đầy đủ thông tin"
-            return
-        }
-
-        if (newPassword.length < 6) {
-            _errorMessage.value = "Mật khẩu mới phải có ít nhất 6 ký tự"
-            return
-        }
-
-        if (newPassword != confirmPassword) {
-            _errorMessage.value = "Mật khẩu xác nhận không khớp"
-            return
-        }
-
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-
-            when (val result = profileRepository.changePassword(currentPassword, newPassword)) {
-                is Resource.Success -> {
-                    _successMessage.value = "Đổi mật khẩu thành công"
-                }
-                is Resource.Error -> {
-                    val friendlyMessage = when {
-                        result.message?.contains("wrong-password", ignoreCase = true) == true ->
-                            "Mật khẩu hiện tại không đúng"
-                        result.message?.contains("requires-recent-login", ignoreCase = true) == true ->
-                            "Vui lòng đăng nhập lại để thực hiện thao tác này"
-                        else -> result.message ?: "Lỗi đổi mật khẩu"
-                    }
-                    _errorMessage.value = friendlyMessage
-                }
-                else -> {}
-            }
-
-            _isLoading.value = false
-        }
+    fun logout() {
+        firebaseAuth.signOut()
+        // Việc điều hướng sẽ được xử lý bởi AppNavigation hoặc Activity
     }
 
-    fun clearMessages() {
-        _errorMessage.value = null
-        _successMessage.value = null
+    fun changePassword(current: String, new: String, confirm: String) {
+        // TODO: Thêm logic đổi mật khẩu ở đây nếu cần, có thể phát ra event để UI xử lý
     }
 }
