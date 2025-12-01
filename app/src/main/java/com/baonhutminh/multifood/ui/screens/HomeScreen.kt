@@ -74,7 +74,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            val tabs = PostFilterTab.values()
+            val tabs = PostFilterTab.entries.toTypedArray()
             TabRow(selectedTabIndex = tabs.indexOf(selectedTab)) {
                 tabs.forEach { tab ->
                     Tab(
