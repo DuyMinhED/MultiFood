@@ -53,6 +53,10 @@ fun SettingsScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
 
+    // --- MỚI: Thêm state cho Dialog Điều khoản và Bảo mật ---
+    var showTermsDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(successMessage, errorMessage) {
         if (successMessage != null || errorMessage != null) {
             kotlinx.coroutines.delay(3000)
@@ -181,14 +185,16 @@ fun SettingsScreen(
                             icon = Icons.Default.Description,
                             title = "Điều khoản sử dụng",
                             subtitle = "Xem điều khoản dịch vụ",
-                            onClick = { }
+                            // --- CẬP NHẬT: Thêm sự kiện onClick ---
+                            onClick = { showTermsDialog = true }
                         )
                         HorizontalDivider()
                         SettingsItem(
                             icon = Icons.Default.PrivacyTip,
                             title = "Chính sách bảo mật",
                             subtitle = "Xem chính sách bảo mật",
-                            onClick = { }
+                            // --- CẬP NHẬT: Thêm sự kiện onClick ---
+                            onClick = { showPrivacyDialog = true }
                         )
                         HorizontalDivider()
                         SettingsItem(
@@ -257,7 +263,115 @@ fun SettingsScreen(
             }
         )
     }
+
+    // --- MỚI: Dialog Điều khoản sử dụng ---
+    if (showTermsDialog) {
+        AlertDialog(
+            onDismissRequest = { showTermsDialog = false },
+            title = { Text("Điều khoản sử dụng") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = "1. Giới thiệu",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Chào mừng bạn đến với MultiFood. Bằng việc sử dụng ứng dụng, bạn đồng ý với các điều khoản dưới đây.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "2. Quyền và trách nhiệm",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "• Người dùng chịu trách nhiệm về nội dung đăng tải\n• Không được đăng nội dung vi phạm pháp luật\n• Tôn trọng quyền riêng tư của người khác",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "3. Nội dung người dùng",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "• Bài review phải trung thực, khách quan\n• Hình ảnh phải do người dùng tự chụp hoặc có quyền sử dụng\n• Không spam hoặc quảng cáo trái phép",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTermsDialog = false }) {
+                    Text("Đóng")
+                }
+            }
+        )
+    }
+
+    // --- MỚI: Dialog Chính sách bảo mật ---
+    if (showPrivacyDialog) {
+        AlertDialog(
+            onDismissRequest = { showPrivacyDialog = false },
+            title = { Text("Chính sách bảo mật") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = "1. Thu thập thông tin",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Chúng tôi thu thập thông tin cần thiết để cung cấp dịch vụ:\n• Email và tên hiển thị\n• Ảnh đại diện (nếu có)\n• Bài review và đánh giá",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "2. Sử dụng thông tin",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "• Cung cấp và cải thiện dịch vụ\n• Gửi thông báo quan trọng\n• Phân tích và nghiên cứu",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "3. Bảo vệ thông tin",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "• Mã hóa dữ liệu truyền tải\n• Bảo mật máy chủ Firebase\n• Không chia sẻ với bên thứ ba",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPrivacyDialog = false }) {
+                    Text("Đóng")
+                }
+            }
+        )
+    }
 }
+
+// --- Các hàm Component con bên dưới được giữ nguyên ---
 
 @Composable
 private fun SettingsItem(
