@@ -23,7 +23,7 @@ import com.baonhutminh.multifood.ui.navigation.Screen
 fun AppTopBar(screen: Screen) {
     Surface(
         color = MaterialTheme.colorScheme.surface, // Trắng (#FFFFFF)
-        contentColor = MaterialTheme.colorScheme.primary, // Đen (#000000)
+        contentColor = MaterialTheme.colorScheme.onSurface, // Đen (#000000)
     ) {
         Row(
             modifier = Modifier
