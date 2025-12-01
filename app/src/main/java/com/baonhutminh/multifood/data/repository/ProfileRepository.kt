@@ -7,10 +7,12 @@ import kotlinx.coroutines.flow.Flow
 
 interface ProfileRepository {
     fun getUserProfile(): Flow<Resource<UserProfile?>>
-    suspend fun updateName(newName: String): Resource<Unit> // Đổi tên từ updateDisplayName
+    suspend fun updateName(newName: String): Resource<Unit>
     suspend fun updateBio(newBio: String): Resource<Unit>
     suspend fun uploadAvatar(imageUri: Uri): Resource<String>
     suspend fun changePassword(currentPassword: String, newPassword: String): Resource<Unit>
     suspend fun refreshUserProfile(): Resource<Unit>
 
+    // Thêm hàm mới để xử lý logic thích/bỏ thích
+    suspend fun toggleLike(postId: String): Resource<Unit>
 }

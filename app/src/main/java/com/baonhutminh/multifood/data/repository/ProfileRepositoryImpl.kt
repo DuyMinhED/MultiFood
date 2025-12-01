@@ -9,7 +9,9 @@ import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.userProfileChangeRequest
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.toObject
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -24,11 +26,47 @@ class ProfileRepositoryImpl @Inject constructor(
 ) : ProfileRepository {
 
     private val usersCollection = firestore.collection("users")
+    private val postsCollection = firestore.collection("posts")
 
     override fun getUserProfile(): Flow<Resource<UserProfile?>> {
         val currentUser = auth.currentUser ?: return kotlinx.coroutines.flow.flowOf(Resource.Error("Chưa đăng nhập"))
         return userDao.getUserProfile(currentUser.uid).map { profile ->
             Resource.Success(profile)
+        }
+    }
+
+    override suspend fun toggleLike(postId: String): Resource<Unit> {
+        val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
+        return try {
+            firestore.runTransaction {
+                transaction ->
+                val userRef = usersCollection.document(currentUser.uid)
+                val postRef = postsCollection.document(postId)
+
+                val userDoc = transaction.get(userRef)
+                val user = userDoc.toObject<User>() ?: throw Exception("Không tìm thấy người dùng.")
+
+                val isLiked = user.likedPostIds.contains(postId)
+
+                if (isLiked) {
+                    // Bỏ thích
+                    transaction.update(userRef, "likedPostIds", FieldValue.arrayRemove(postId))
+                    transaction.update(postRef, "likeCount", FieldValue.increment(-1))
+                } else {
+                    // Thích
+                    transaction.update(userRef, "likedPostIds", FieldValue.arrayUnion(postId))
+                    transaction.update(postRef, "likeCount", FieldValue.increment(1))
+                }
+                null
+            }.await()
+
+            // Cập nhật lại profile và bài đăng cục bộ
+            refreshUserProfile()
+
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.e("ProfileRepositoryImpl", "Error toggling like", e)
+            Resource.Error(e.message ?: "Lỗi khi thích bài viết")
         }
     }
 
@@ -40,11 +78,10 @@ class ProfileRepositoryImpl @Inject constructor(
             val userDto = doc.toObject(User::class.java)
 
             if (userDto != null) {
-                // Ánh xạ từ User (DTO) sang UserProfile (Entity)
                 val userProfile = UserProfile(
                     id = userDto.id,
                     name = userDto.name,
-                    email = userDto.email ?: "", // <-- Ánh xạ email
+                    email = userDto.email ?: "",
                     avatarUrl = userDto.avatarUrl,
                     bio = userDto.bio,
                     postCount = userDto.postCount,
@@ -106,9 +143,7 @@ class ProfileRepositoryImpl @Inject constructor(
             val profileUpdates = userProfileChangeRequest { photoUri = Uri.parse(downloadUrl) }
             currentUser.updateProfile(profileUpdates).await()
             usersCollection.document(currentUser.uid).update("avatarUrl", downloadUrl).await()
-
             refreshUserProfile()
-
             Resource.Success(downloadUrl)
         } catch (e: Exception) {
             Log.e("ProfileRepositoryImpl", "Error uploading avatar", e)

@@ -1,18 +1,14 @@
 package com.baonhutminh.multifood.viewmodel
 
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.model.PostEntity
+import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
-import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,60 +18,63 @@ enum class PostFilterTab(val title: String) {
     LIKED("Đã thích")
 }
 
+data class HomeUiState(
+    val posts: List<PostEntity> = emptyList(),
+    val userProfile: UserProfile? = null,
+    val selectedTab: PostFilterTab = PostFilterTab.ALL,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val postRepository: PostRepository,
-    private val profileRepository: ProfileRepository,
-    private val auth: FirebaseAuth
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
-    private val _posts = mutableStateOf<List<PostEntity>>(emptyList()) // <-- Đã sửa: Post -> PostEntity
-    val posts: State<List<PostEntity>> = _posts
+    private val _selectedTab = MutableStateFlow(PostFilterTab.ALL)
+    private val _isLoading = MutableStateFlow(false)
+    private val _errorMessage = MutableStateFlow<String?>(null)
 
-    private val _selectedTab = mutableStateOf(PostFilterTab.ALL)
-    val selectedTab: State<PostFilterTab> = _selectedTab
-
-    private val _isLoading = mutableStateOf(false)
-    val isLoading: State<Boolean> = _isLoading
-
-    private val _errorMessage = mutableStateOf<String?>(null)
-    val errorMessage: State<String?> = _errorMessage
-
-    init {
-        observePosts()
-        refreshPosts(isInitialLoad = true)
-    }
-
-    private fun observePosts() {
-        viewModelScope.launch {
-            snapshotFlow { _selectedTab.value }.collectLatest { tab ->
-                _isLoading.value = true
-                val currentUser = auth.currentUser
-
-                val sourceFlow = when (tab) {
-                    PostFilterTab.ALL -> postRepository.getAllPosts()
-                    PostFilterTab.MY_POSTS -> {
-                        if (currentUser != null) {
-                            postRepository.getPostsForUser(currentUser.uid)
-                        } else {
-                            kotlinx.coroutines.flow.flowOf(Resource.Success<List<PostEntity>>(emptyList()))
-                        }
-                    }
-                    PostFilterTab.LIKED -> {
-                        val profileResource = profileRepository.getUserProfile().first()
-                        val likedIds = (profileResource as? Resource.Success)?.data?.likedPostIds ?: emptyList()
-                        postRepository.getLikedPosts(likedIds)
-                    }
-                }
-
-                sourceFlow.collect { resource ->
-                    if (resource is Resource.Success) {
-                        _posts.value = resource.data ?: emptyList()
-                    }
-                    _isLoading.value = false
-                }
+    // Lấy danh sách bài đăng dựa trên tab được chọn
+    private val postsFlow = _selectedTab.flatMapLatest { tab ->
+        when (tab) {
+            PostFilterTab.ALL -> postRepository.getAllPosts()
+            PostFilterTab.MY_POSTS -> {
+                profileRepository.getUserProfile().first().data?.id?.let {
+                    postRepository.getPostsForUser(it)
+                } ?: flowOf(Resource.Success(emptyList()))
+            }
+            PostFilterTab.LIKED -> {
+                profileRepository.getUserProfile().first().data?.likedPostIds?.let {
+                    postRepository.getLikedPosts(it)
+                } ?: flowOf(Resource.Success(emptyList()))
             }
         }
+    }
+
+    val uiState: StateFlow<HomeUiState> = combine(
+        postsFlow,
+        profileRepository.getUserProfile(),
+        _selectedTab,
+        _isLoading,
+        _errorMessage
+    ) { postsRes, profileRes, tab, loading, error ->
+        HomeUiState(
+            posts = (postsRes as? Resource.Success)?.data ?: emptyList(),
+            userProfile = (profileRes as? Resource.Success)?.data,
+            selectedTab = tab,
+            isLoading = loading,
+            errorMessage = error
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = HomeUiState()
+    )
+
+    init {
+        refreshPosts(isInitialLoad = true)
     }
 
     fun onTabSelected(tab: PostFilterTab) {
@@ -88,6 +87,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             if (isInitialLoad) _isLoading.value = true
 
+            // Refresh cả 2 cùng lúc
             profileRepository.refreshUserProfile()
             val result = postRepository.refreshAllPosts()
 
@@ -95,6 +95,14 @@ class HomeViewModel @Inject constructor(
                 _errorMessage.value = result.message ?: "Không thể làm mới danh sách bài đăng"
             }
             if (isInitialLoad) _isLoading.value = false
+        }
+    }
+
+    fun toggleLike(postId: String) {
+        viewModelScope.launch {
+            // Optimistic update: Cập nhật UI ngay lập tức (nếu cần)
+            // Ở đây ta chỉ cần gọi đến repo, vì Flow sẽ tự động cập nhật lại
+            profileRepository.toggleLike(postId)
         }
     }
 

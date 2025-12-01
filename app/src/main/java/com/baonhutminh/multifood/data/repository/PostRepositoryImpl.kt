@@ -98,7 +98,7 @@ class PostRepositoryImpl @Inject constructor(
             val newCommentRef = commentsCollection.document()
             val newComment = comment.copy(id = newCommentRef.id, userId = currentUser.uid)
             newCommentRef.set(newComment).await()
-            refreshCommentsForPost(comment.reviewId)
+            // Đã xóa refreshCommentsForPost(comment.reviewId)
             Resource.Success(Unit)
         } catch (e: Exception) {
             Log.e("PostRepositoryImpl", "Error adding comment", e)
