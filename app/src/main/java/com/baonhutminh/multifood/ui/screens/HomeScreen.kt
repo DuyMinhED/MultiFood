@@ -91,8 +91,8 @@ fun HomeScreen(
         },
         bottomBar = {
             AppBottomBar(
-                currentScreen = Screen.Home, // <-- Đã sửa
-                onNavigate = { screen -> // <-- Đã sửa
+                currentScreen = Screen.Home,
+                onNavigate = { screen ->
                     if (screen.route == Screen.Profile.route) {
                         onAccountClick()
                     }
@@ -175,15 +175,14 @@ fun HomeScreen(
                         ) {
                             items(
                                 items = uiState.posts,
-                                key = { it.id }
-                            ) { post ->
-                                val isLiked = uiState.userProfile?.likedPostIds?.contains(post.id) == true
+                                key = { it.post.id }
+                            ) { postWithAuthor ->
+                                val isLiked = uiState.userProfile?.likedPostIds?.contains(postWithAuthor.post.id) == true
                                 PostItemCard(
-                                    post = post,
+                                    postWithAuthor = postWithAuthor,
                                     isLiked = isLiked,
-                                    onLikeClick = { viewModel.toggleLike(post.id) },
-                                    onItemClick = { onDetailClick(post.id) },
-                                    currentUserProfile = uiState.userProfile
+                                    onLikeClick = { viewModel.toggleLike(postWithAuthor.post.id) },
+                                    onItemClick = { onDetailClick(postWithAuthor.post.id) }
                                 )
                             }
                         }

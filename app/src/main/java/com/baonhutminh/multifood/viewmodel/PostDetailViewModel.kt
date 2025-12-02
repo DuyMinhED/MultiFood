@@ -4,8 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.model.Comment
-import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.UserProfile
+import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
+import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.data.repository.CommentRepository
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
@@ -29,8 +30,8 @@ sealed class PostDetailEvent {
 }
 
 data class PostDetailUiState(
-    val post: PostEntity? = null,
-    val comments: List<Comment> = emptyList(),
+    val postWithAuthor: PostWithAuthor? = null,
+    val comments: List<CommentWithAuthor> = emptyList(),
     val currentUser: UserProfile? = null,
     val isLoading: Boolean = true,
     val isDeleting: Boolean = false,
@@ -66,7 +67,7 @@ class PostDetailViewModel @Inject constructor(
         _viewModel_state
     ) { postRes, commentsRes, userRes, vmState ->
         PostDetailUiState(
-            post = (postRes as? Resource.Success)?.data,
+            postWithAuthor = (postRes as? Resource.Success)?.data,
             comments = (commentsRes as? Resource.Success)?.data ?: emptyList(),
             currentUser = (userRes as? Resource.Success)?.data,
             isLoading = (postRes as? Resource.Success)?.data == null,
@@ -114,21 +115,19 @@ class PostDetailViewModel @Inject constructor(
                 reviewId = postId,
                 content = commentText,
                 createdAt = Date(),
-                updatedAt = Date(),
-                userName = user.name,
-                userAvatarUrl = user.avatarUrl ?: ""
+                updatedAt = Date()
             )
 
-            val createResult = commentRepository.createComment(newComment, user.id)
+            val result = commentRepository.createComment(newComment, user.id)
 
-            if (createResult is Resource.Success) {
+            if (result is Resource.Success) {
                 val refreshResult = commentRepository.refreshCommentsForPost(postId)
                 if (refreshResult is Resource.Error) {
                     _viewModel_state.update { it.copy(errorMessage = "Đã gửi bình luận, nhưng không thể làm mới danh sách.") }
                 }
-            } else if (createResult is Resource.Error) {
+            } else if (result is Resource.Error) {
                 _viewModel_state.update {
-                    it.copy(commentInput = commentText, errorMessage = createResult.message)
+                    it.copy(commentInput = commentText, errorMessage = result.message)
                 }
             }
             _viewModel_state.update { it.copy(isAddingComment = false) }
@@ -137,7 +136,7 @@ class PostDetailViewModel @Inject constructor(
 
     fun deletePost() {
         viewModelScope.launch {
-            val postToDelete = uiState.value.post ?: return@launch
+            val postToDelete = uiState.value.postWithAuthor?.post ?: return@launch
             if (postToDelete.userId != uiState.value.currentUser?.id) {
                 _viewModel_state.update { it.copy(errorMessage = "Bạn không có quyền xóa bài viết này") }
                 return@launch

@@ -2,13 +2,12 @@ package com.baonhutminh.multifood.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.UserProfile
+import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,7 +19,7 @@ enum class PostFilterTab(val title: String) {
 }
 
 data class HomeUiState(
-    val posts: List<PostEntity> = emptyList(),
+    val posts: List<PostWithAuthor> = emptyList(),
     val userProfile: UserProfile? = null,
     val selectedTab: PostFilterTab = PostFilterTab.ALL,
     val isLoading: Boolean = false,
@@ -37,8 +36,6 @@ class HomeViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    // Lấy danh sách bài đăng dựa trên tab được chọn
-    @OptIn(ExperimentalCoroutinesApi::class)
     private val postsFlow = _selectedTab.flatMapLatest { tab ->
         when (tab) {
             PostFilterTab.ALL -> postRepository.getAllPosts()
@@ -77,10 +74,8 @@ class HomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // Tạm dừng và chờ đợi giá trị đầu tiên từ postsFlow (đọc từ Room)
             val initialPostsResult = postsFlow.first()
 
-            // Chỉ refresh nếu kết quả đọc từ Room là rỗng
             if ((initialPostsResult as? Resource.Success)?.data.isNullOrEmpty()) {
                 refreshPosts(isInitialLoad = true)
             }
@@ -97,7 +92,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             if (isInitialLoad) _isLoading.value = true
 
-            // Refresh cả 2 cùng lúc
             profileRepository.refreshUserProfile()
             val result = postRepository.refreshAllPosts()
 
@@ -110,8 +104,6 @@ class HomeViewModel @Inject constructor(
 
     fun toggleLike(postId: String) {
         viewModelScope.launch {
-            // Optimistic update: Cập nhật UI ngay lập tức (nếu cần)
-            // Ở đây ta chỉ cần gọi đến repo, vì Flow sẽ tự động cập nhật lại
             profileRepository.toggleLike(postId)
         }
     }

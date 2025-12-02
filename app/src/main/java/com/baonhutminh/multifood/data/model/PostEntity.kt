@@ -9,7 +9,7 @@ import java.util.Date
  * Đại diện cho một bài đăng được lưu trong cơ sở dữ liệu Room.
  * Đây là một Entity.
  */
-@Entity(tableName = "posts") // <-- Đã xóa foreignKeys
+@Entity(tableName = "posts")
 @TypeConverters(Converters::class)
 data class PostEntity(
     @PrimaryKey
@@ -22,9 +22,8 @@ data class PostEntity(
     val pricePerPerson: Int = 0,
     val visitTimestamp: Long = 0L,
 
-    // Dữ liệu được cache lại để hiển thị nhanh trên UI
-    val userName: String = "",
-    val userAvatarUrl: String = "",
+    // Các trường cache về tác giả đã được xóa
+
     val placeName: String = "",
     val placeAddress: String = "",
     val placeCoverImage: String = "",

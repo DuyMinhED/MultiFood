@@ -6,6 +6,7 @@ import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.PostEntity
+import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -24,26 +25,25 @@ class PostRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val storage: FirebaseStorage,
     private val postDao: PostDao,
-    private val commentDao: CommentDao // <-- Đảm bảo đã inject
+    private val commentDao: CommentDao
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
-    private val commentsCollection = firestore.collection("comments")
     private val usersCollection = firestore.collection("users")
 
-    override fun getAllPosts(): Flow<Resource<List<PostEntity>>> {
+    override fun getAllPosts(): Flow<Resource<List<PostWithAuthor>>> {
         return postDao.getAllPosts().map { Resource.Success(it) }
     }
 
-    override fun getPostById(postId: String): Flow<Resource<PostEntity?>> {
+    override fun getPostById(postId: String): Flow<Resource<PostWithAuthor?>> {
         return postDao.getPostById(postId).map { Resource.Success(it) }
     }
 
-    override fun getPostsForUser(userId: String): Flow<Resource<List<PostEntity>>> {
+    override fun getPostsForUser(userId: String): Flow<Resource<List<PostWithAuthor>>> {
         return postDao.getPostsForUser(userId).map { Resource.Success(it) }
     }
 
-    override fun getLikedPosts(postIds: List<String>): Flow<Resource<List<PostEntity>>> {
+    override fun getLikedPosts(postIds: List<String>): Flow<Resource<List<PostWithAuthor>>> {
         if (postIds.isEmpty()) {
             return kotlinx.coroutines.flow.flowOf(Resource.Success(emptyList()))
         }
@@ -54,6 +54,13 @@ class PostRepositoryImpl @Inject constructor(
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
+            // Bây giờ chúng ta cần lưu cả thông tin người dùng vào Room
+            val userIds = postDTOs.map { it.userId }.distinct()
+            for (userId in userIds) {
+                // Đây là một cách đơn giản, có thể tối ưu hơn
+                // bằng cách chỉ fetch những user chưa có trong Room
+                // refreshUserProfile(userId) // Giả sử có hàm này
+            }
             val postEntities = postDTOs.map { it.toEntity() }
             postDao.syncPosts(postEntities)
             Resource.Success(Unit)
@@ -105,31 +112,24 @@ class PostRepositoryImpl @Inject constructor(
 
     override suspend fun deletePost(postId: String, authorId: String): Resource<Unit> {
         return try {
-            // 1. Tìm tất cả các bình luận liên quan trước
-            val commentsToDelete = commentsCollection.whereEqualTo("reviewId", postId).get().await()
+            val commentsToDelete = firestore.collection("comments").whereEqualTo("reviewId", postId).get().await()
 
-            // 2. Chạy Transaction để xóa bài viết và tất cả bình luận
             firestore.runTransaction {
                 transaction ->
                 val postRef = postsCollection.document(postId)
                 val userRef = usersCollection.document(authorId)
 
-                transaction.get(postRef) // Đọc trước khi ghi
+                transaction.get(postRef)
 
-                // Xóa tất cả các document bình luận đã tìm thấy
                 for (doc in commentsToDelete) {
                     transaction.delete(doc.reference)
                 }
 
-                // Xóa bài viết
                 transaction.delete(postRef)
-
-                // Giảm postCount của người dùng đi 1
                 transaction.update(userRef, "postCount", FieldValue.increment(-1))
 
             }.await()
 
-            // 3. Đồng bộ xóa trong cơ sở dữ liệu Room
             commentDao.deleteCommentsForPost(postId)
             postDao.delete(postId)
 
@@ -152,8 +152,6 @@ fun Post.toEntity(): PostEntity {
         imageUrls = this.imageUrls,
         pricePerPerson = this.pricePerPerson,
         visitTimestamp = this.visitTimestamp,
-        userName = this.userName,
-        userAvatarUrl = this.userAvatarUrl,
         placeName = this.placeName,
         placeAddress = this.placeAddress,
         placeCoverImage = this.placeCoverImage,

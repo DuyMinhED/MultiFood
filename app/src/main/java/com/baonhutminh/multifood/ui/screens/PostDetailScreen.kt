@@ -29,6 +29,7 @@ import coil.compose.AsyncImage
 import com.baonhutminh.multifood.ui.components.CommentItem
 import com.baonhutminh.multifood.viewmodel.PostDetailEvent
 import com.baonhutminh.multifood.viewmodel.PostDetailViewModel
+import com.baonhutminh.multifood.viewmodel.PostDetailUiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -37,7 +38,7 @@ fun PostDetailScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val post = uiState.post
+    val postWithAuthor = uiState.postWithAuthor
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -60,14 +61,14 @@ fun PostDetailScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(text = post?.placeName ?: "Chi tiết") },
+                title = { Text(text = postWithAuthor?.post?.placeName ?: "Chi tiết") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
                 actions = {
-                    if (uiState.post?.userId == uiState.currentUser?.id) {
+                    if (postWithAuthor?.post?.userId == uiState.currentUser?.id) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Xóa bài viết")
                         }
@@ -82,17 +83,14 @@ fun PostDetailScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             if (uiState.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (post != null) {
+            } else if (postWithAuthor != null) {
+                val post = postWithAuthor.post
                 LazyColumn(contentPadding = it) {
-                    // --- BẮT ĐẦU NỘI DUNG MÀN HÌNH ---
-
-                    // 1. Image Pager
                     if (post.imageUrls.isNotEmpty()) {
                         item {
                             val pagerState = rememberPagerState { post.imageUrls.size }
                             Box(modifier = Modifier.height(300.dp)) {
-                                HorizontalPager(state = pagerState) {
-                                    page ->
+                                HorizontalPager(state = pagerState) { page ->
                                     AsyncImage(
                                         model = post.imageUrls[page],
                                         contentDescription = "Post Image ${page + 1}",
@@ -100,7 +98,6 @@ fun PostDetailScreen(
                                         contentScale = ContentScale.Crop
                                     )
                                 }
-                                // Indicator
                                 if (pagerState.pageCount > 1) {
                                     Row(
                                         Modifier
@@ -123,7 +120,6 @@ fun PostDetailScreen(
                         }
                     }
 
-                    // 2. Post Info
                     item {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(post.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -144,12 +140,10 @@ fun PostDetailScreen(
                         }
                     }
 
-                    // 3. Divider
                     item {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     }
 
-                    // 4. Comments Section
                     item {
                         Text(
                             "Bình luận (${uiState.comments.size})",
@@ -168,12 +162,11 @@ fun PostDetailScreen(
                             )
                         }
                     } else {
-                        items(uiState.comments, key = { it.id }) { comment ->
-                            CommentItem(comment = comment, modifier = Modifier.padding(horizontal = 16.dp))
+                        items(uiState.comments, key = { it.comment.id }) { commentWithAuthor ->
+                            CommentItem(commentWithAuthor = commentWithAuthor, modifier = Modifier.padding(horizontal = 16.dp))
                         }
                     }
 
-                    // Spacer for bottom bar
                     item {
                         Spacer(modifier = Modifier.height(80.dp))
                     }
@@ -211,7 +204,7 @@ fun PostDetailScreen(
 }
 
 @Composable
-private fun CommentInputField(uiState: com.baonhutminh.multifood.viewmodel.PostDetailUiState, viewModel: PostDetailViewModel) {
+private fun CommentInputField(uiState: PostDetailUiState, viewModel: PostDetailViewModel) {
     Surface(shadowElevation = 8.dp) {
         Row(
             modifier = Modifier

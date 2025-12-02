@@ -18,16 +18,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.baonhutminh.multifood.data.model.Comment
+import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
 fun CommentItem(
-    comment: Comment,
+    commentWithAuthor: CommentWithAuthor,
     modifier: Modifier = Modifier
 ) {
+    val comment = commentWithAuthor.comment
+    val author = commentWithAuthor.author
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -35,7 +38,7 @@ fun CommentItem(
         verticalAlignment = Alignment.Top
     ) {
         AsyncImage(
-            model = comment.userAvatarUrl,
+            model = author.avatarUrl,
             contentDescription = "User Avatar",
             modifier = Modifier
                 .size(40.dp)
@@ -46,13 +49,13 @@ fun CommentItem(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = comment.userName,
+                    text = author.name,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = formatRelativeTime(comment.createdAt?.time ?: 0L), // Sửa ở đây
+                    text = formatRelativeTime(comment.createdAt?.time ?: 0L),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

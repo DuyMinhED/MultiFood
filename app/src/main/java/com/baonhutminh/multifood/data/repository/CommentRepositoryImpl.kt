@@ -3,6 +3,7 @@ package com.baonhutminh.multifood.data.repository
 import android.util.Log
 import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.model.Comment
+import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -21,7 +22,7 @@ class CommentRepositoryImpl @Inject constructor(
     private val commentCollection = firestore.collection("comments")
     private val postCollection = firestore.collection("posts")
 
-    override fun getCommentsForPost(postId: String): Flow<Resource<List<Comment>>> {
+    override fun getCommentsForPost(postId: String): Flow<Resource<List<CommentWithAuthor>>> {
         return commentDao.getCommentsForPost(postId).map { Resource.Success(it) }
     }
 
@@ -33,7 +34,7 @@ class CommentRepositoryImpl @Inject constructor(
             commentDao.upsertAll(comments)
             Resource.Success(Unit)
         } catch (e: Exception) {
-            if (e is CancellationException) throw e // Ném lại nếu là lỗi hủy bỏ
+            if (e is CancellationException) throw e
             Log.e("CommentRepositoryImpl", "Error refreshing comments", e)
             Resource.Error(e.message ?: "Lỗi làm mới bình luận")
         }
@@ -55,7 +56,7 @@ class CommentRepositoryImpl @Inject constructor(
             }.await()
             Resource.Success(Unit)
         } catch (e: Exception) {
-            if (e is CancellationException) throw e // Ném lại nếu là lỗi hủy bỏ
+            if (e is CancellationException) throw e
             Log.e("CommentRepositoryImpl", "Error creating comment", e)
             Resource.Error(e.message ?: "Lỗi tạo bình luận")
         }

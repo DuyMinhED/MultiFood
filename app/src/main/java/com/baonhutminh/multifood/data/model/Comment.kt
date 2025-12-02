@@ -5,7 +5,7 @@ import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import java.util.Date
 
-@Entity(tableName = "comments") // <-- Đã xóa foreignKeys
+@Entity(tableName = "comments")
 @TypeConverters(Converters::class)
 data class Comment(
     @PrimaryKey
@@ -13,8 +13,7 @@ data class Comment(
     val reviewId: String = "",
     val parentCommentId: String? = null,
     val userId: String = "",
-    val userName: String = "",
-    val userAvatarUrl: String = "",
+    // Các trường cache về tác giả đã được xóa
     val rating: Int = 0,
     val content: String = "",
     val imageUrls: List<String> = emptyList(),

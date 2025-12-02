@@ -37,8 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.baonhutminh.multifood.data.model.PostEntity
-import com.baonhutminh.multifood.data.model.UserProfile
+import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -46,13 +45,15 @@ import java.util.Locale
 
 @Composable
 fun PostItemCard(
-    post: PostEntity,
+    postWithAuthor: PostWithAuthor,
     isLiked: Boolean,
     onLikeClick: (String) -> Unit,
     onItemClick: (String) -> Unit,
-    currentUserProfile: UserProfile? = null,
     modifier: Modifier = Modifier
 ) {
+    val post = postWithAuthor.post
+    val author = postWithAuthor.author
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -229,10 +230,6 @@ fun PostItemCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                val isMyPost = currentUserProfile?.id == post.userId
-                val authorName = if (isMyPost) currentUserProfile?.name else post.userName
-                val authorAvatar = if (isMyPost) currentUserProfile?.avatarUrl else post.userAvatarUrl
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -243,7 +240,7 @@ fun PostItemCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         AsyncImage(
-                            model = authorAvatar ?: "",
+                            model = author.avatarUrl,
                             contentDescription = "User Avatar",
                             modifier = Modifier
                                 .size(32.dp)
@@ -253,7 +250,7 @@ fun PostItemCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = authorName ?: "",
+                                text = author.name,
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -261,7 +258,7 @@ fun PostItemCard(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = formatRelativeTime(post.createdAt?.time ?: 0L), // <-- Sửa ở đây
+                                text = formatRelativeTime(post.createdAt?.time ?: 0L),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
