@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
+import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
 class PostRepositoryImpl @Inject constructor(
@@ -51,10 +52,10 @@ class PostRepositoryImpl @Inject constructor(
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
             val postEntities = postDTOs.map { it.toEntity() }
-            // Sử dụng hàm sync mới để đảm bảo dữ liệu được đồng bộ chính xác
             postDao.syncPosts(postEntities)
             Resource.Success(Unit)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error refreshing posts", e)
             Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
         }
@@ -78,6 +79,7 @@ class PostRepositoryImpl @Inject constructor(
 
             Resource.Success(newPostId)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error creating post", e)
             Resource.Error(e.message ?: "Lỗi tạo bài đăng")
         }
@@ -92,6 +94,7 @@ class PostRepositoryImpl @Inject constructor(
             val downloadUrl = storageRef.downloadUrl.await().toString()
             Resource.Success(downloadUrl)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error uploading post image", e)
             Resource.Error(e.message ?: "Lỗi tải ảnh bài đăng lên")
         }
@@ -112,6 +115,7 @@ class PostRepositoryImpl @Inject constructor(
             }.await()
             Resource.Success(Unit)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error deleting post", e)
             Resource.Error(e.message ?: "Lỗi xóa bài viết")
         }

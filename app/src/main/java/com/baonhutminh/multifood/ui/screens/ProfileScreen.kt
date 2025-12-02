@@ -106,8 +106,8 @@ fun ProfileScreen(
         },
         bottomBar = {
             AppBottomBar(
-                currentScreen = Screen.Profile, // <-- Đã sửa
-                onNavigate = { screen -> // <-- Đã sửa
+                currentScreen = Screen.Profile,
+                onNavigate = { screen ->
                     if (screen.route == Screen.Home.route) {
                         onClickHome()
                     }
@@ -277,8 +277,8 @@ fun ProfileScreen(
                         )
                         StatCard(
                             icon = Icons.Default.Favorite,
-                            count = userProfile?.likedPostIds?.size ?: 0,
-                            label = "Yêu thích"
+                            count = userProfile?.totalLikesReceived ?: 0, // <-- Đã sửa
+                            label = "Lượt thích"
                         )
                     }
 

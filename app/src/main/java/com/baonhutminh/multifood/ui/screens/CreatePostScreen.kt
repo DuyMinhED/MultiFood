@@ -42,6 +42,7 @@ fun CreatePostScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState
+    val isFormValid by viewModel.isFormValid
 
     LaunchedEffect(Unit) {
         viewModel.events.collect {
@@ -68,14 +69,14 @@ fun CreatePostScreen(
                 actions = {
                     TextButton(
                         onClick = { viewModel.submitPost() },
-                        enabled = uiState !is CreatePostUiState.Loading
+                        enabled = isFormValid && uiState !is CreatePostUiState.Loading // <-- Đã sửa
                     ) {
                         Text(
                             "ĐĂNG",
                             fontWeight = FontWeight.Bold,
-                            color = if (uiState is CreatePostUiState.Loading)
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            else MaterialTheme.colorScheme.primary
+                            color = if (isFormValid && uiState !is CreatePostUiState.Loading)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         )
                     }
                 }
@@ -88,7 +89,6 @@ fun CreatePostScreen(
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Error message at top
                 if (uiState is CreatePostUiState.Error) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -103,7 +103,6 @@ fun CreatePostScreen(
                     }
                 }
 
-                // Place Information Section
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -122,7 +121,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.placeName.value,
                             onValueChange = { viewModel.placeName.value = it },
-                            label = { Text("Tên nhà hàng / quán ăn *") },
+                            label = { Text("Tên nhà hàng / quán ăn *") }, // <-- Đã sửa
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
@@ -132,7 +131,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.placeAddress.value,
                             onValueChange = { viewModel.placeAddress.value = it },
-                            label = { Text("Địa chỉ *") },
+                            label = { Text("Địa chỉ *") }, // <-- Đã sửa
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
@@ -142,7 +141,6 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.pricePerPerson.value,
                             onValueChange = {
-                                // Only allow numbers
                                 val filtered = it.filter { char -> char.isDigit() }
                                 viewModel.pricePerPerson.value = filtered
                             },
@@ -163,7 +161,6 @@ fun CreatePostScreen(
                     }
                 }
 
-                // Review Content Section
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -182,7 +179,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.title.value,
                             onValueChange = { viewModel.title.value = it },
-                            label = { Text("Tiêu đề *") },
+                            label = { Text("Tiêu đề *") }, // <-- Đã sửa
                             placeholder = { Text("Món ăn ngon, không gian đẹp...") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -193,7 +190,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.content.value,
                             onValueChange = { viewModel.content.value = it },
-                            label = { Text("Nội dung đánh giá *") },
+                            label = { Text("Nội dung đánh giá *") }, // <-- Đã sửa
                             placeholder = { Text("Chia sẻ trải nghiệm của bạn...") },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -203,7 +200,6 @@ fun CreatePostScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Rating Section
                         Text(
                             text = "Xếp hạng",
                             style = MaterialTheme.typography.titleSmall,
@@ -217,7 +213,6 @@ fun CreatePostScreen(
                     }
                 }
 
-                // Images Section
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -256,11 +251,9 @@ fun CreatePostScreen(
                     }
                 }
 
-                // Bottom spacing
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Loading overlay
             if (uiState is CreatePostUiState.Loading) {
                 Box(
                     modifier = Modifier
@@ -346,7 +339,6 @@ fun ImageSelector(
                                 .clip(MaterialTheme.shapes.medium),
                             contentScale = ContentScale.Crop
                         )
-                        // Remove button
                         IconButton(
                             onClick = { onRemoveImage(uri) },
                             modifier = Modifier

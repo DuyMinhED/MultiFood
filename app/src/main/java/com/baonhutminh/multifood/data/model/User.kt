@@ -18,6 +18,7 @@ data class User(
     val postCount: Int = 0,
     val followerCount: Int = 0,
     val followingCount: Int = 0,
+    val totalLikesReceived: Int = 0, // <-- Đã thêm
 
     val likedPostIds: List<String> = emptyList(),
     val bookmarkedPostIds: List<String> = emptyList(),

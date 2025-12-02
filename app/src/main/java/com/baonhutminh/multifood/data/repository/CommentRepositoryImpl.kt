@@ -10,22 +10,21 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
 class CommentRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val commentDao: CommentDao // <-- Thêm DAO
+    private val commentDao: CommentDao
 ) : CommentRepository {
 
     private val commentCollection = firestore.collection("comments")
     private val postCollection = firestore.collection("posts")
 
-    // Đọc từ Room thay vì Firestore trực tiếp
     override fun getCommentsForPost(postId: String): Flow<Resource<List<Comment>>> {
         return commentDao.getCommentsForPost(postId).map { Resource.Success(it) }
     }
 
-    // Thêm hàm refresh riêng cho comments
     override suspend fun refreshCommentsForPost(postId: String): Resource<Unit> {
         return try {
             val snapshot = commentCollection.whereEqualTo("reviewId", postId)
@@ -34,12 +33,12 @@ class CommentRepositoryImpl @Inject constructor(
             commentDao.upsertAll(comments)
             Resource.Success(Unit)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e // Ném lại nếu là lỗi hủy bỏ
             Log.e("CommentRepositoryImpl", "Error refreshing comments", e)
             Resource.Error(e.message ?: "Lỗi làm mới bình luận")
         }
     }
 
-    // Giữ nguyên logic Transaction
     override suspend fun createComment(comment: Comment, authorId: String): Resource<Unit> {
         return try {
             firestore.runTransaction {
@@ -47,7 +46,7 @@ class CommentRepositoryImpl @Inject constructor(
                 val newCommentRef = commentCollection.document()
                 val postRef = postCollection.document(comment.reviewId)
 
-                transaction.get(postRef) // Đọc trước khi ghi
+                transaction.get(postRef)
 
                 val newComment = comment.copy(id = newCommentRef.id, userId = authorId)
 
@@ -56,6 +55,7 @@ class CommentRepositoryImpl @Inject constructor(
             }.await()
             Resource.Success(Unit)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e // Ném lại nếu là lỗi hủy bỏ
             Log.e("CommentRepositoryImpl", "Error creating comment", e)
             Resource.Error(e.message ?: "Lỗi tạo bình luận")
         }

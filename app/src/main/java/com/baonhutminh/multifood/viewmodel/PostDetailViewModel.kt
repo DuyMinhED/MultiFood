@@ -49,7 +49,7 @@ private data class ViewModelState(
 @HiltViewModel
 class PostDetailViewModel @Inject constructor(
     private val postRepository: PostRepository,
-    private val commentRepository: CommentRepository, // <-- Đã sửa
+    private val commentRepository: CommentRepository,
     private val profileRepository: ProfileRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -61,7 +61,7 @@ class PostDetailViewModel @Inject constructor(
 
     val uiState: StateFlow<PostDetailUiState> = combine(
         postRepository.getPostById(postId),
-        commentRepository.getCommentsForPost(postId), // <-- Đã sửa
+        commentRepository.getCommentsForPost(postId),
         profileRepository.getUserProfile(),
         _viewModel_state
     ) { postRes, commentsRes, userRes, vmState ->
@@ -88,7 +88,7 @@ class PostDetailViewModel @Inject constructor(
     fun refreshData() {
         viewModelScope.launch {
             postRepository.refreshAllPosts()
-            commentRepository.refreshCommentsForPost(postId) // <-- Đã sửa
+            commentRepository.refreshCommentsForPost(postId)
         }
     }
 
@@ -119,14 +119,16 @@ class PostDetailViewModel @Inject constructor(
                 userAvatarUrl = user.avatarUrl ?: ""
             )
 
-            // Gọi đúng hàm từ CommentRepository
-            val result = commentRepository.createComment(newComment, user.id)
+            val createResult = commentRepository.createComment(newComment, user.id)
 
-            if (result is Resource.Success) {
-                commentRepository.refreshCommentsForPost(postId) // <-- Đã sửa
-            } else if (result is Resource.Error) {
+            if (createResult is Resource.Success) {
+                val refreshResult = commentRepository.refreshCommentsForPost(postId)
+                if (refreshResult is Resource.Error) {
+                    _viewModel_state.update { it.copy(errorMessage = "Đã gửi bình luận, nhưng không thể làm mới danh sách.") }
+                }
+            } else if (createResult is Resource.Error) {
                 _viewModel_state.update {
-                    it.copy(commentInput = commentText, errorMessage = result.message)
+                    it.copy(commentInput = commentText, errorMessage = createResult.message)
                 }
             }
             _viewModel_state.update { it.copy(isAddingComment = false) }

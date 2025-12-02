@@ -3,6 +3,7 @@ package com.baonhutminh.multifood.data.repository
 import android.net.Uri
 import android.util.Log
 import com.baonhutminh.multifood.data.local.UserDao
+import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.util.Resource
@@ -44,7 +45,12 @@ class ProfileRepositoryImpl @Inject constructor(
                 val postRef = postsCollection.document(postId)
 
                 val userDoc = transaction.get(userRef)
+                val postDoc = transaction.get(postRef)
+
                 val user = userDoc.toObject<User>() ?: throw Exception("Không tìm thấy người dùng.")
+                val post = postDoc.toObject<Post>() ?: throw Exception("Không tìm thấy bài viết.")
+                
+                val postAuthorRef = usersCollection.document(post.userId)
 
                 val isLiked = user.likedPostIds.contains(postId)
 
@@ -52,15 +58,16 @@ class ProfileRepositoryImpl @Inject constructor(
                     // Bỏ thích
                     transaction.update(userRef, "likedPostIds", FieldValue.arrayRemove(postId))
                     transaction.update(postRef, "likeCount", FieldValue.increment(-1))
+                    transaction.update(postAuthorRef, "totalLikesReceived", FieldValue.increment(-1))
                 } else {
                     // Thích
                     transaction.update(userRef, "likedPostIds", FieldValue.arrayUnion(postId))
                     transaction.update(postRef, "likeCount", FieldValue.increment(1))
+                    transaction.update(postAuthorRef, "totalLikesReceived", FieldValue.increment(1))
                 }
                 null
             }.await()
 
-            // Cập nhật lại profile và bài đăng cục bộ
             refreshUserProfile()
 
             Resource.Success(Unit)
@@ -87,6 +94,7 @@ class ProfileRepositoryImpl @Inject constructor(
                     postCount = userDto.postCount,
                     followerCount = userDto.followerCount,
                     followingCount = userDto.followingCount,
+                    totalLikesReceived = userDto.totalLikesReceived, // <-- Đã thêm
                     likedPostIds = userDto.likedPostIds
                 )
                 userDao.upsert(userProfile)

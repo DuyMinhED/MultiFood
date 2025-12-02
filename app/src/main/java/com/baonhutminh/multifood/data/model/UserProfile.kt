@@ -14,13 +14,14 @@ data class UserProfile(
     @PrimaryKey
     val id: String = "",
     val name: String = "",
-    val email: String = "", // <-- Đã thêm lại
+    val email: String = "",
     val avatarUrl: String = "",
     val bio: String = "",
 
     val postCount: Int = 0,
     val followerCount: Int = 0,
     val followingCount: Int = 0,
+    val totalLikesReceived: Int = 0, // <-- Đã thêm
 
     val likedPostIds: List<String> = emptyList()
 )

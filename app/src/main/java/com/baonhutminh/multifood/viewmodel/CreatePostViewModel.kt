@@ -1,6 +1,7 @@
 package com.baonhutminh.multifood.viewmodel
 
 import android.net.Uri
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,7 +23,6 @@ class CreatePostViewModel @Inject constructor(
     private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
-    // Trạng thái cho các trường nhập liệu
     val title = mutableStateOf("")
     val content = mutableStateOf("")
     val rating = mutableStateOf(0f)
@@ -30,6 +30,14 @@ class CreatePostViewModel @Inject constructor(
     val placeName = mutableStateOf("")
     val placeAddress = mutableStateOf("")
     val imageUris = mutableStateOf<List<Uri>>(emptyList())
+
+    // Tính toán xem form có hợp lệ không
+    val isFormValid = derivedStateOf {
+        placeName.value.isNotBlank() &&
+        placeAddress.value.isNotBlank() &&
+        title.value.isNotBlank() &&
+        content.value.isNotBlank()
+    }
 
     private val _uiState = mutableStateOf<CreatePostUiState>(CreatePostUiState.Idle)
     val uiState = _uiState
@@ -42,6 +50,12 @@ class CreatePostViewModel @Inject constructor(
     }
 
     fun submitPost() {
+        // Lớp bảo vệ cuối cùng
+        if (!isFormValid.value) {
+            _uiState.value = CreatePostUiState.Error("Vui lòng điền đầy đủ các trường bắt buộc.")
+            return
+        }
+
         viewModelScope.launch {
             _uiState.value = CreatePostUiState.Loading
 
@@ -80,10 +94,8 @@ class CreatePostViewModel @Inject constructor(
 
             when (val result = postRepository.createPost(post)) {
                 is Resource.Success -> {
-                    // Làm mới cả hai nguồn dữ liệu
                     profileRepository.refreshUserProfile()
                     postRepository.refreshAllPosts()
-                    
                     _uiState.value = CreatePostUiState.Success
                     _events.emit(CreatePostEvent.NavigateBack)
                 }

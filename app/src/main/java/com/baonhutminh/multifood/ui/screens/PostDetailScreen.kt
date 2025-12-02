@@ -41,7 +41,6 @@ fun PostDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    // Lắng nghe các sự kiện từ ViewModel
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -50,7 +49,6 @@ fun PostDetailScreen(
         }
     }
 
-    // Hiển thị Snackbar khi có lỗi
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
             snackbarHostState.showSnackbar(message = it, duration = SnackbarDuration.Short)
@@ -69,7 +67,6 @@ fun PostDetailScreen(
                     }
                 },
                 actions = {
-                    // Chỉ hiển thị nút xóa nếu là chủ bài viết
                     if (uiState.post?.userId == uiState.currentUser?.id) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Xóa bài viết")
@@ -87,17 +84,107 @@ fun PostDetailScreen(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else if (post != null) {
                 LazyColumn(contentPadding = it) {
-                    // ... (Nội dung màn hình giữ nguyên)
+                    // --- BẮT ĐẦU NỘI DUNG MÀN HÌNH ---
+
+                    // 1. Image Pager
+                    if (post.imageUrls.isNotEmpty()) {
+                        item {
+                            val pagerState = rememberPagerState { post.imageUrls.size }
+                            Box(modifier = Modifier.height(300.dp)) {
+                                HorizontalPager(state = pagerState) {
+                                    page ->
+                                    AsyncImage(
+                                        model = post.imageUrls[page],
+                                        contentDescription = "Post Image ${page + 1}",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                // Indicator
+                                if (pagerState.pageCount > 1) {
+                                    Row(
+                                        Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .padding(bottom = 8.dp)
+                                    ) {
+                                        repeat(pagerState.pageCount) { iteration ->
+                                            val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else Color.LightGray
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(2.dp)
+                                                    .clip(CircleShape)
+                                                    .background(color)
+                                                    .size(8.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Post Info
+                    item {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(post.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.LocationOn, contentDescription = "Địa chỉ", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(post.placeAddress, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Star, contentDescription = "Đánh giá", modifier = Modifier.size(16.dp), tint = Color(0xFFFFC107))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("%.1f / 5.0".format(post.rating), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(post.content, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+
+                    // 3. Divider
+                    item {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+
+                    // 4. Comments Section
+                    item {
+                        Text(
+                            "Bình luận (${uiState.comments.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
+                        )
+                    }
+
+                    if (uiState.comments.isEmpty()) {
+                        item {
+                            Text(
+                                "Chưa có bình luận nào. Hãy là người đầu tiên!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                    } else {
+                        items(uiState.comments, key = { it.id }) { comment ->
+                            CommentItem(comment = comment, modifier = Modifier.padding(horizontal = 16.dp))
+                        }
+                    }
+
+                    // Spacer for bottom bar
+                    item {
+                        Spacer(modifier = Modifier.height(80.dp))
+                    }
                 }
             }
-            // Loading overlay khi đang xóa
             if (uiState.isDeleting) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
     }
 
-    // Hộp thoại xác nhận xóa
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -138,12 +225,12 @@ private fun CommentInputField(uiState: com.baonhutminh.multifood.viewmodel.PostD
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Viết bình luận...") },
                 shape = RoundedCornerShape(24.dp),
-                enabled = !uiState.isAddingComment // <-- Vô hiệu hóa khi đang gửi
+                enabled = !uiState.isAddingComment
             )
             Spacer(modifier = Modifier.width(8.dp))
             Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 if (uiState.isAddingComment) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp)) // <-- Hiển thị loading
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 } else {
                     IconButton(
                         onClick = { viewModel.addComment() },
