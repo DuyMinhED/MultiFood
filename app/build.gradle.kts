@@ -9,11 +9,11 @@ plugins {
 
 android {
     namespace = "com.baonhutminh.multifood"
-    compileSdk =36
+    compileSdk = 35 // <-- Đã sửa
 
     defaultConfig {
         applicationId = "com.baonhutminh.multifood"
-        minSdk = 34
+        minSdk = 28 // Giữ nguyên Android 9
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
