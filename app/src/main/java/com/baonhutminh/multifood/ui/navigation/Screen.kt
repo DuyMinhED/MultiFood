@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -16,6 +17,7 @@ sealed class Screen(
     data object SignUp : Screen("signup_screen", "Đăng ký")
 
     data object Home : Screen("home_screen", "Trang chủ", Icons.Default.Home)
+    data object Search : Screen("search_screen", "Tìm kiếm", Icons.Default.Search) // <-- Đã thêm
     data object CreatePost : Screen("create_post_screen", "Tạo bài viết", Icons.Default.Create)
     data object Profile : Screen("profile_screen", "Tài khoản", Icons.Default.Person)
     data object Settings : Screen("settings_screen", "Cài đặt", Icons.Default.Settings)

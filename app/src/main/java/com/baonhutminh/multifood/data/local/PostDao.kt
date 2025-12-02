@@ -30,6 +30,18 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE id IN (:postIds) ORDER BY createdAt DESC")
     fun getPostsByIds(postIds: List<String>): Flow<List<PostWithAuthor>>
 
+    // Hàm tìm kiếm đã được nâng cấp
+    @Transaction
+    @Query("""
+        SELECT * FROM posts 
+        WHERE 
+            (title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%' OR placeName LIKE '%' || :query || '%')
+            AND rating >= :minRating
+            AND pricePerPerson BETWEEN :minPrice AND :maxPrice
+        ORDER BY createdAt DESC
+    """)
+    fun searchPosts(query: String, minRating: Float, minPrice: Int, maxPrice: Int): Flow<List<PostWithAuthor>>
+
     @Query("DELETE FROM posts WHERE id = :postId")
     suspend fun delete(postId: String)
 

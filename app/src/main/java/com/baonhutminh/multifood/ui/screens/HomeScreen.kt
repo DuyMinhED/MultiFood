@@ -47,7 +47,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onDetailClick: (String) -> Unit,
     onAccountClick: () -> Unit,
-    onCreateClick: () -> Unit
+    onCreateClick: () -> Unit,
+    onSearchClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
@@ -86,7 +87,7 @@ fun HomeScreen(
             AppTopBar(
                 screen = Screen.Home,
                 showSearch = true,
-                onSearchClick = { /* TODO: Implement search */ }
+                onSearchClick = onSearchClick
             )
         },
         bottomBar = {

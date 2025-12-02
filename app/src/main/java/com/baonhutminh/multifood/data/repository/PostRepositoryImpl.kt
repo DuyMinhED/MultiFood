@@ -50,17 +50,14 @@ class PostRepositoryImpl @Inject constructor(
         return postDao.getPostsByIds(postIds).map { Resource.Success(it) }
     }
 
+    override fun searchPosts(query: String, minRating: Float, minPrice: Int, maxPrice: Int): Flow<Resource<List<PostWithAuthor>>> {
+        return postDao.searchPosts(query, minRating, minPrice, maxPrice).map { Resource.Success(it) }
+    }
+
     override suspend fun refreshAllPosts(): Resource<Unit> {
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
-            // Bây giờ chúng ta cần lưu cả thông tin người dùng vào Room
-            val userIds = postDTOs.map { it.userId }.distinct()
-            for (userId in userIds) {
-                // Đây là một cách đơn giản, có thể tối ưu hơn
-                // bằng cách chỉ fetch những user chưa có trong Room
-                // refreshUserProfile(userId) // Giả sử có hàm này
-            }
             val postEntities = postDTOs.map { it.toEntity() }
             postDao.syncPosts(postEntities)
             Resource.Success(Unit)

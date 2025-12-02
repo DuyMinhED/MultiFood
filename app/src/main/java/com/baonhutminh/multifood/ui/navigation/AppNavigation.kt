@@ -6,12 +6,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.baonhutminh.multifood.ui.screens.CreatePostScreen
+import com.baonhutminh.multifood.ui.screens.HomeScreen
 import com.baonhutminh.multifood.ui.screens.LoginScreen
 import com.baonhutminh.multifood.ui.screens.PostDetailScreen
-import com.baonhutminh.multifood.ui.screens.SignUpScreen
-import com.baonhutminh.multifood.ui.screens.HomeScreen
 import com.baonhutminh.multifood.ui.screens.ProfileScreen
+import com.baonhutminh.multifood.ui.screens.SearchScreen
 import com.baonhutminh.multifood.ui.screens.SettingsScreen
+import com.baonhutminh.multifood.ui.screens.SignUpScreen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -51,6 +52,9 @@ fun AppNavigation() {
                     },
                     onCreateClick = {
                         navController.navigate(Screen.CreatePost.route)
+                    },
+                    onSearchClick = { // <-- Đã thêm
+                        navController.navigate(Screen.Search.route)
                     }
                 )
             }
@@ -82,7 +86,6 @@ fun AppNavigation() {
         }
 
         composable(Screen.Detail.route) { backStackEntry ->
-            // HiltViewModel sẽ tự động lấy postId từ backStackEntry
             PostDetailScreen(onNavigateBack = { navController.popBackStack() })
         }
 
@@ -102,6 +105,15 @@ fun AppNavigation() {
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
+        }
+
+        composable(Screen.Search.route) { // <-- Đã thêm
+            SearchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onDetailClick = { postId ->
+                    navController.navigate(Screen.Detail.createRoute(postId))
+                }
+            )
         }
     }
 }
