@@ -1,7 +1,6 @@
 package com.baonhutminh.multifood.data.model
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import java.util.Date
@@ -10,17 +9,7 @@ import java.util.Date
  * Đại diện cho một bài đăng được lưu trong cơ sở dữ liệu Room.
  * Đây là một Entity.
  */
-@Entity(
-    tableName = "posts",
-    foreignKeys = [
-        ForeignKey(
-            entity = UserProfile::class,
-            parentColumns = ["id"],
-            childColumns = ["userId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
-)
+@Entity(tableName = "posts") // <-- Đã xóa foreignKeys
 @TypeConverters(Converters::class)
 data class PostEntity(
     @PrimaryKey
@@ -45,7 +34,6 @@ data class PostEntity(
 
     val status: PostStatus = PostStatus.PUBLISHED,
     
-    // Sửa kiểu dữ liệu
     val createdAt: Date? = null,
     val updatedAt: Date? = null
 )
