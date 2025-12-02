@@ -1,0 +1,97 @@
+1.THIẾT KẾ CƠ SỞ DỮ LIỆU
+3.1. Mô hình dữ liệu tổng thể Ứng dụng sử dụng mô hình kết hợp giữa Cloud Firestore (NoSQL) và Room (SQLite) trên thiết bị:
+Cloud Firestore: lưu dữ liệu chính, hỗ trợ realtime, đồng bộ đa thiết bị.
+Room: đóng vai trò cache offline, giúp: • Hiển thị feed nhanh • Người dùng vẫn xem được nội dung ngay cả khi mất mạng • Giảm số lần đọc Firestore → tiết kiệm chi phí
+Dữ liệu được tổ chức theo các thực thể chính: Người dùng (User)  Nhà hàng / quán ăn / quán nước (Restaurant)  Bài viết đánh giá (Post) Ảnh trong bài viết (PostImage)  Lượt thích (Like)  Bình luận (Comment)  Quan hệ theo dõi (Follow)
+Hệ thống sử dụng Cloud Functions để cập nhật các trường đếm (counter) đảm bảo chính xác và Security Rules để quản lý quyền truy cập.
+3.2. Thiết kế dữ liệu trên Cloud Firestore
+3.2.1. Collection users Đường dẫn: users/{userId} Mục đích: lưu thông tin hồ sơ người dùng và các thống kê liên quan.
+Thuộc tính	Kiểu	Ý nghĩa
+name	String	Tên hiển thị của người dùng
+username	String	Tên định danh dạng @username, duy nhất
+avatarUrl	String	Link ảnh đại diện
+bio	String	Mô tả ngắn về bản thân
+isVerified	Boolean	Cờ đánh dấu tài khoản xác minh
+postCount	Long	Tổng số bài viết đã đăng
+followerCount	Long	Số người theo dõi
+followingCount	Long	Số người mà user đang theo dõi
+totalLikesReceived	Long	Tổng số lượt like nhận được trên tất cả bài viết
+createdAt	Timestamp	Thời điểm tạo user
+updatedAt	Timestamp	Thời điểm cập nhật gần nhất
+→ Các trường đếm được cập nhật bằng Cloud Functions hoặc transaction để tránh sai lệch khi nhiều client thao tác đồng thời.
+3.2.2. Collection restaurants Đường dẫn: restaurants/{restaurantId}
+Thuộc tính	Kiểu	Ý nghĩa
+name	String	Tên quán
+address	String	Địa chỉ đầy đủ
+lat	Double	Vĩ độ (toạ độ GPS)
+lng	Double	Kinh độ (toạ độ GPS)
+phone	String?	Số điện thoại liên hệ (có thể null)
+coverImageUrl	String?	Ảnh bìa đại diện cho quán
+priceRange	String?	Tầm giá: "", "\[ ", " \]"
+cuisineTypes	List<String>	Danh sách loại hình ẩm thực
+totalRatingPoints	Double	Tổng điểm rating cộng dồn
+reviewCount	Long	Số lượng bài review cho quán
+averageRating	Double	Điểm trung bình = totalRatingPoints / reviewCount
+createdBy	String	userId của người đầu tiên tạo quán
+createdAt	Timestamp	Thời điểm tạo quán
+3.2.3. Collection posts và các sub-collection
+Document Post  Đường dẫn: posts/{postId}
+Thuộc tính	Kiểu	Ý nghĩa
+userId	String	ID người viết bài
+restaurantId	String	ID nhà hàng/quán được review
+title	String	Tiêu đề bài viết
+content	String	Nội dung chia sẻ cảm nhận
+rating	Float	Điểm đánh giá (1.0 – 5.0)
+pricePerPerson	Int	Chi phí trung bình mỗi người
+visitDate	Timestamp	Thời gian đi ăn
+likeCount	Long	Tổng số lượt thích bài viết
+commentCount	Long	Tổng số bình luận
+status	Enum	DRAFT, PUBLISHED, DELETED
+createdAt	Timestamp	Thời điểm tạo bài viết
+updatedAt	Timestamp	Thời điểm chỉnh sửa gần nhất
+Sub-collection images  posts/{postId}/images/{imageId}
+Thuộc tính	Kiểu	Ý nghĩa
+url	String	Link ảnh trên Storage
+width	Int	Chiều rộng ảnh
+height	Int	Chiều cao ảnh
+order	Int	Thứ tự hiển thị
+Sub-collection likes  posts/{postId}/likes/{userId}
+Thuộc tính	Kiểu	Ý nghĩa
+likedAt	Timestamp	Thời điểm nhấn like
+Sub-collection comments  posts/{postId}/comments/{commentId}
+Thuộc tính	Kiểu	Ý nghĩa
+userId	String	Người bình luận
+content	String	Nội dung bình luận
+parentId	String?	null = comment gốc; có giá trị = reply
+imageUrl	String?	Ảnh đính kèm (nếu có)
+likeCount	Long	Số lượt thích comment
+createdAt	Timestamp	Thời điểm bình luận
+3.2.4. Hệ thống Follow
+user_following/{userId}/{followingUserId}
+user_followers/{userId}/{followerUserId}
+Thuộc tính	Kiểu	Ý nghĩa
+since	Timestamp	Thời điểm bắt đầu follow
+3.3. Thiết kế cơ sở dữ liệu cục bộ (Room – SQLite)
+Bảng	Các trường chính quan trọng
+user_profiles	id (PK), name, username, avatarUrl, bio, postCount, followerCount, followingCount…
+restaurants	id (PK), name, address, coverImageUrl, averageRating, reviewCount…
+posts	id (PK), userId, restaurantId, title, content, rating, pricePerPerson, visitTimestamp, userName, userAvatarUrl, restaurantName, restaurantAddress, likeCount, commentCount, isLikedByMe…
+post_images	dbId (PK auto), postId, url, order
+post_likes	postId (PK1), userId (PK2)
+3.4. Quy trình nghiệp vụ chính gắn với CSDL
+3.4.1. Đăng ký / đăng nhập người dùng → Tạo document users/{userId} → đồng bộ vào bảng user_profiles (Room).
+3.4.2. Tạo nhà hàng / quán ăn mới → Tạo document restaurants/{restaurantId} với các trường đếm = 0 → cache vào Room nếu cần.
+3.4.3. Tạo bài viết review → Tạo document posts/{postId} + upload ảnh → tạo sub-collection images → Cloud Functions: tăng postCount (user), cập nhật rating quán (reviewCount, totalRatingPoints, averageRating) → Lưu vào bảng posts (Room) kèm thông tin cache.
+3.4.4. Like / Unlike bài viết → Tạo/xóa document posts/{postId}/likes/{userId} → Cloud Functions cập nhật likeCount (post) và totalLikesReceived (author) → Room cập nhật isLikedByMe và likeCount.
+3.4.5. Bình luận bài viết → Tạo document posts/{postId}/comments/{commentId} → Tăng commentCount (có thể dùng Cloud Function).
+3.4.6. Follow / Unfollow → Tạo/xóa 2 document hai chiều → Cloud Functions tăng/giảm followerCount & followingCount.
+3.5. Cloud Functions chính
+onLike / onUnlike → cập nhật likeCount & totalLikesReceived
+onPostCreated → tăng postCount của user
+updateRestaurantRating → cập nhật reviewCount, totalRatingPoints, averageRating
+3.6. Security Rules (tóm tắt)
+Users: chỉ chủ sở hữu được sửa
+Restaurants: mọi người đọc được, chỉ user đăng nhập mới tạo/sửa
+Posts: mọi người đọc, chỉ chủ mới sửa/xóa
+Likes & Comments: chỉ chính người đó mới được tạo/xóa của mình
+Public read, private write theo đúng chủ sở hữu

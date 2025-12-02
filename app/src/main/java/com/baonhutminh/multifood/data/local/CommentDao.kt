@@ -15,10 +15,10 @@ interface CommentDao {
     suspend fun upsertAll(comments: List<Comment>)
 
     @Transaction
-    @Query("SELECT * FROM comments WHERE reviewId = :postId ORDER BY createdAt ASC")
+    @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY createdAt ASC")
     fun getCommentsForPost(postId: String): Flow<List<CommentWithAuthor>>
 
-    @Query("DELETE FROM comments WHERE reviewId = :postId")
+    @Query("DELETE FROM comments WHERE postId = :postId")
     suspend fun deleteCommentsForPost(postId: String)
 
     @Query("DELETE FROM comments")

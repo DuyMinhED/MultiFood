@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -49,6 +51,7 @@ fun PostItemCard(
     isLiked: Boolean,
     onLikeClick: (String) -> Unit,
     onItemClick: (String) -> Unit,
+    images: List<String> = emptyList(), // URLs của images
     modifier: Modifier = Modifier
 ) {
     val post = postWithAuthor.post
@@ -66,67 +69,63 @@ fun PostItemCard(
         )
     ) {
         Column {
-            if (post.imageUrls.isNotEmpty()) {
-                Box {
+            // Box for image and rating
+            Box {
+                // Main image - Placeholder if no images
+                if (images.isNotEmpty()) {
                     AsyncImage(
-                        model = post.imageUrls.first(),
+                        model = images.first(),
                         contentDescription = "Post Image",
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp),
                         contentScale = ContentScale.Crop
                     )
-
-                    Surface(
+                } else {
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(12.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        color = Color.Black.copy(alpha = 0.75f)
+                            .fillMaxWidth()
+                            .height(150.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "Rating",
-                                tint = Color(0xFFFFC107),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "%.1f".format(post.rating),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
+                        Text("No Image", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
 
-                    if (post.imageUrls.size > 1) {
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(12.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.Black.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = "+${post.imageUrls.size - 1}",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
+                // Rating Badge
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.75f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Rating",
+                            tint = Color(0xFFFFC107),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "%.1f".format(post.rating),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
                 }
             }
 
+            // Content Section
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = post.placeName,
+                    text = post.restaurantName.ifEmpty { "Nhà hàng" },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -148,61 +147,27 @@ fun PostItemCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = "Location",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = post.placeAddress,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    if (post.imageUrls.isEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "Rating",
-                                tint = Color(0xFFFFC107),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "%.1f".format(post.rating),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Location",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = post.restaurantAddress.ifEmpty { "Địa chỉ" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    text = post.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
                 if (post.pricePerPerson > 0) {
-                    Spacer(modifier = Modifier.height(12.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.primaryContainer
@@ -226,8 +191,10 @@ fun PostItemCard(
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
@@ -267,10 +234,7 @@ fun PostItemCard(
 
                     Surface(
                         shape = CircleShape,
-                        color = if (isLiked)
-                            Color.Red.copy(alpha = 0.1f)
-                        else
-                            MaterialTheme.colorScheme.surfaceVariant
+                        color = if (isLiked) Color.Red.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         IconButton(
                             onClick = { onLikeClick(post.id) },
@@ -300,9 +264,9 @@ private fun formatRelativeTime(timestamp: Long): String {
 
     return when {
         diff < 60_000 -> "Vừa xong"
-        diff < 3600_000 -> "${diff / 60_000} phút trước"
-        diff < 86400_000 -> "${diff / 3600_000} giờ trước"
-        diff < 604800_000 -> "${diff / 86400_000} ngày trước"
+        diff < 3_600_000 -> "${diff / 60_000} phút trước"
+        diff < 86_400_000 -> "${diff / 3_600_000} giờ trước"
+        diff < 604_800_000 -> "${diff / 86_400_000} ngày trước"
         else -> SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(timestamp))
     }
 }

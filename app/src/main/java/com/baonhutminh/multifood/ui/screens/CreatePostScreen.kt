@@ -7,6 +7,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -27,11 +28,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.focus.FocusState
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.rememberAsyncImagePainter
+import com.baonhutminh.multifood.data.model.RestaurantEntity
 import com.baonhutminh.multifood.viewmodel.CreatePostEvent
 import com.baonhutminh.multifood.viewmodel.CreatePostUiState
 import com.baonhutminh.multifood.viewmodel.CreatePostViewModel
@@ -46,6 +50,10 @@ fun CreatePostScreen(
     val isFormValid by viewModel.isFormValid
     val isEditing by viewModel.isEditing
     var showDeleteDialog by remember { mutableStateOf(false) }
+    
+    val restaurantSuggestions by viewModel.restaurantSuggestions
+    val isSearchingRestaurants by viewModel.isSearchingRestaurants
+    val selectedRestaurant by viewModel.selectedRestaurant
 
     LaunchedEffect(Unit) {
         viewModel.events.collect {
@@ -126,23 +134,31 @@ fun CreatePostScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        OutlinedTextField(
+                        // Restaurant Name với Autocomplete
+                        RestaurantAutocompleteField(
                             value = viewModel.placeName.value,
-                            onValueChange = { viewModel.placeName.value = it },
-                            label = { Text("Tên nhà hàng / quán ăn *") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                            onValueChange = viewModel::onPlaceNameChanged,
+                            label = "Tên nhà hàng / quán ăn *",
+                            suggestions = restaurantSuggestions,
+                            isSearching = isSearchingRestaurants,
+                            onSuggestionClick = { restaurant ->
+                                viewModel.selectRestaurant(restaurant)
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        OutlinedTextField(
+                        // Restaurant Address với Autocomplete
+                        RestaurantAutocompleteField(
                             value = viewModel.placeAddress.value,
-                            onValueChange = { viewModel.placeAddress.value = it },
-                            label = { Text("Địa chỉ *") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                            onValueChange = viewModel::onPlaceAddressChanged,
+                            label = "Địa chỉ *",
+                            suggestions = restaurantSuggestions,
+                            isSearching = isSearchingRestaurants,
+                            onSuggestionClick = { restaurant ->
+                                viewModel.selectRestaurant(restaurant)
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -394,4 +410,133 @@ fun ImageSelector(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RestaurantAutocompleteField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    suggestions: List<RestaurantEntity>,
+    isSearching: Boolean,
+    onSuggestionClick: (RestaurantEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var textFieldState by remember { mutableStateOf(value) }
+    
+    // Update textFieldState when value changes externally (e.g., when selectedRestaurant is set)
+    LaunchedEffect(value) {
+        textFieldState = value
+    }
+    
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = textFieldState,
+            onValueChange = { newValue: String ->
+                textFieldState = newValue
+                onValueChange(newValue)
+                expanded = suggestions.isNotEmpty() && newValue.isNotBlank()
+            },
+            label = { Text(text = label) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focusState: FocusState ->
+                    expanded = focusState.isFocused && suggestions.isNotEmpty() && textFieldState.isNotBlank()
+                },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            trailingIcon = {
+                if (isSearching) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+        )
+        
+        // Dropdown menu với suggestions
+        if (expanded && suggestions.isNotEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .heightIn(max = 200.dp)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(suggestions, key = { it.id }) { restaurant ->
+                        RestaurantSuggestionItem(
+                            restaurant = restaurant,
+                            onClick = {
+                                onSuggestionClick(restaurant)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RestaurantSuggestionItem(
+    restaurant: RestaurantEntity,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = restaurant.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            if (restaurant.address.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = restaurant.address,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (restaurant.averageRating > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = String.format("%.1f", restaurant.averageRating),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (restaurant.reviewCount > 0) {
+                        Text(
+                            text = " (${restaurant.reviewCount})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+    HorizontalDivider()
 }

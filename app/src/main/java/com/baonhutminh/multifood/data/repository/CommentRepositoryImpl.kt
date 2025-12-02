@@ -5,7 +5,6 @@ import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
 import com.baonhutminh.multifood.util.Resource
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.flow.Flow
@@ -19,16 +18,13 @@ class CommentRepositoryImpl @Inject constructor(
     private val commentDao: CommentDao
 ) : CommentRepository {
 
-    private val commentCollection = firestore.collection("comments")
-    private val postCollection = firestore.collection("posts")
-
     override fun getCommentsForPost(postId: String): Flow<Resource<List<CommentWithAuthor>>> {
         return commentDao.getCommentsForPost(postId).map { Resource.Success(it) }
     }
 
     override suspend fun refreshCommentsForPost(postId: String): Resource<Unit> {
         return try {
-            val snapshot = commentCollection.whereEqualTo("reviewId", postId)
+            val snapshot = firestore.collection("posts").document(postId).collection("comments")
                 .orderBy("createdAt", Query.Direction.ASCENDING).get().await()
             val comments = snapshot.toObjects(Comment::class.java)
             commentDao.upsertAll(comments)
@@ -42,18 +38,10 @@ class CommentRepositoryImpl @Inject constructor(
 
     override suspend fun createComment(comment: Comment, authorId: String): Resource<Unit> {
         return try {
-            firestore.runTransaction {
-                transaction ->
-                val newCommentRef = commentCollection.document()
-                val postRef = postCollection.document(comment.reviewId)
-
-                transaction.get(postRef)
-
-                val newComment = comment.copy(id = newCommentRef.id, userId = authorId)
-
-                transaction.set(newCommentRef, newComment)
-                transaction.update(postRef, "commentCount", FieldValue.increment(1))
-            }.await()
+            val newCommentRef = firestore.collection("posts").document(comment.postId).collection("comments").document()
+            val newComment = comment.copy(id = newCommentRef.id, userId = authorId)
+            newCommentRef.set(newComment).await()
+            // Logic cập nhật commentCount sẽ do Cloud Function xử lý
             Resource.Success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e

@@ -3,6 +3,7 @@ package com.baonhutminh.multifood.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
@@ -27,6 +28,7 @@ import javax.inject.Inject
 
 sealed class PostDetailEvent {
     object NavigateBack : PostDetailEvent()
+    object NavigateToHome : PostDetailEvent()
 }
 
 data class PostDetailUiState(
@@ -37,7 +39,8 @@ data class PostDetailUiState(
     val isDeleting: Boolean = false,
     val errorMessage: String? = null,
     val commentInput: String = "",
-    val isAddingComment: Boolean = false
+    val isAddingComment: Boolean = false,
+    val images: List<String> = emptyList() // URLs của images
 )
 
 private data class ViewModelState(
@@ -52,6 +55,7 @@ class PostDetailViewModel @Inject constructor(
     private val postRepository: PostRepository,
     private val commentRepository: CommentRepository,
     private val profileRepository: ProfileRepository,
+    private val postImageDao: PostImageDao,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -64,8 +68,9 @@ class PostDetailViewModel @Inject constructor(
         postRepository.getPostById(postId),
         commentRepository.getCommentsForPost(postId),
         profileRepository.getUserProfile(),
+        postImageDao.getImagesForPost(postId),
         _viewModel_state
-    ) { postRes, commentsRes, userRes, vmState ->
+    ) { postRes, commentsRes, userRes, images, vmState ->
         PostDetailUiState(
             postWithAuthor = (postRes as? Resource.Success)?.data,
             comments = (commentsRes as? Resource.Success)?.data ?: emptyList(),
@@ -74,7 +79,8 @@ class PostDetailViewModel @Inject constructor(
             isDeleting = vmState.isDeleting,
             commentInput = vmState.commentInput,
             isAddingComment = vmState.isAddingComment,
-            errorMessage = vmState.errorMessage
+            errorMessage = vmState.errorMessage,
+            images = images.map { it.url }
         )
     }.stateIn(
         scope = viewModelScope,
@@ -112,7 +118,7 @@ class PostDetailViewModel @Inject constructor(
             _viewModel_state.update { it.copy(commentInput = "") }
 
             val newComment = Comment(
-                reviewId = postId,
+                postId = postId,
                 content = commentText,
                 createdAt = Date(),
                 updatedAt = Date()
@@ -144,16 +150,31 @@ class PostDetailViewModel @Inject constructor(
 
             _viewModel_state.update { it.copy(isDeleting = true, errorMessage = null) }
 
-            val result = postRepository.deletePost(postToDelete.id, postToDelete.userId)
+            val result = postRepository.deletePost(postToDelete.id)
 
             if (result is Resource.Success) {
                 postRepository.refreshAllPosts()
                 profileRepository.refreshUserProfile()
-                _events.emit(PostDetailEvent.NavigateBack)
+                _events.emit(PostDetailEvent.NavigateToHome)
             } else {
                 _viewModel_state.update { it.copy(errorMessage = result.message ?: "Lỗi xóa bài viết") }
             }
             _viewModel_state.update { it.copy(isDeleting = false) }
+        }
+    }
+
+    fun toggleLike() {
+        viewModelScope.launch {
+            val post = uiState.value.postWithAuthor?.post ?: return@launch
+            val isLiked = profileRepository.getLikedPostsForCurrentUser()
+                .first()
+                .any { it.postId == post.id }
+            
+            val result = profileRepository.toggleLike(post.id, isLiked)
+            // Refresh post để cập nhật likeCount từ Firestore (Cloud Functions đã cập nhật)
+            if (result is Resource.Success) {
+                postRepository.refreshAllPosts()
+            }
         }
     }
 

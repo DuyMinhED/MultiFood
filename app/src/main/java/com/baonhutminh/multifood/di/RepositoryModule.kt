@@ -8,6 +8,8 @@ import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.PostRepositoryImpl
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepositoryImpl
+import com.baonhutminh.multifood.data.repository.RestaurantRepository
+import com.baonhutminh.multifood.data.repository.RestaurantRepositoryImpl
 import com.baonhutminh.multifood.data.repository.UserRepository
 import com.baonhutminh.multifood.data.repository.UserRepositoryImpl
 import dagger.Binds
@@ -39,5 +41,9 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindCommentRepository(impl: CommentRepositoryImpl): CommentRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRestaurantRepository(impl: RestaurantRepositoryImpl): RestaurantRepository
 
 }
