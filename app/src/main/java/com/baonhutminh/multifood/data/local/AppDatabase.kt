@@ -10,7 +10,7 @@ import com.baonhutminh.multifood.data.model.UserProfile
 
 @Database(
     entities = [UserProfile::class, PostEntity::class, Comment::class],
-    version = 6, // <-- Đã tăng phiên bản lên 6
+    version = 7, // <-- Đã tăng phiên bản lên 7
     exportSchema = false
 )
 @TypeConverters(Converters::class)
