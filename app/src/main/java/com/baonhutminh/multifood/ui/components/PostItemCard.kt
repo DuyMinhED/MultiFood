@@ -240,7 +240,7 @@ fun PostItemCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         AsyncImage(
-                            model = author.avatarUrl,
+                            model = author?.avatarUrl ?: "",
                             contentDescription = "User Avatar",
                             modifier = Modifier
                                 .size(32.dp)
@@ -250,7 +250,7 @@ fun PostItemCard(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = author.name,
+                                text = author?.name ?: "Người dùng ẩn danh",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,

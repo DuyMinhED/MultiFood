@@ -38,7 +38,7 @@ fun CommentItem(
         verticalAlignment = Alignment.Top
     ) {
         AsyncImage(
-            model = author.avatarUrl,
+            model = author?.avatarUrl ?: "",
             contentDescription = "User Avatar",
             modifier = Modifier
                 .size(40.dp)
@@ -49,7 +49,7 @@ fun CommentItem(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = author.name,
+                    text = author?.name ?: "Người dùng ẩn danh",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )

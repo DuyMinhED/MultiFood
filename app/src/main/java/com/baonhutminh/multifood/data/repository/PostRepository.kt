@@ -16,11 +16,13 @@ interface PostRepository {
 
     fun getLikedPosts(postIds: List<String>): Flow<Resource<List<PostWithAuthor>>>
 
-    fun searchPosts(query: String, minRating: Float, minPrice: Int, maxPrice: Int): Flow<Resource<List<PostWithAuthor>>> // <-- Đã sửa
+    fun searchPosts(query: String, minRating: Float, minPrice: Int, maxPrice: Int): Flow<Resource<List<PostWithAuthor>>>
 
     suspend fun refreshAllPosts(): Resource<Unit>
 
     suspend fun createPost(post: Post): Resource<String>
+
+    suspend fun updatePost(post: Post): Resource<Unit> // <-- Đã thêm
 
     suspend fun uploadPostImage(imageUri: Uri): Resource<String>
 

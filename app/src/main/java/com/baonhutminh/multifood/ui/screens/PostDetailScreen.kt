@@ -12,7 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -35,20 +35,12 @@ import com.baonhutminh.multifood.viewmodel.PostDetailUiState
 @Composable
 fun PostDetailScreen(
     viewModel: PostDetailViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToEdit: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val postWithAuthor = uiState.postWithAuthor
     val snackbarHostState = remember { SnackbarHostState() }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { event ->
-            when (event) {
-                is PostDetailEvent.NavigateBack -> onNavigateBack()
-            }
-        }
-    }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -68,9 +60,12 @@ fun PostDetailScreen(
                     }
                 },
                 actions = {
-                    if (postWithAuthor?.post?.userId == uiState.currentUser?.id) {
-                        IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Xóa bài viết")
+                    // Chỉ hiển thị nút khi postWithAuthor không null
+                    postWithAuthor?.let {
+                        if (it.post.userId == uiState.currentUser?.id) {
+                            IconButton(onClick = { onNavigateToEdit(it.post.id) }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Chỉnh sửa bài viết")
+                            }
                         }
                     }
                 }
@@ -79,13 +74,13 @@ fun PostDetailScreen(
         bottomBar = {
             CommentInputField(uiState, viewModel)
         }
-    ) {
+    ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
             if (uiState.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else if (postWithAuthor != null) {
                 val post = postWithAuthor.post
-                LazyColumn(contentPadding = it) {
+                LazyColumn(contentPadding = paddingValues) {
                     if (post.imageUrls.isNotEmpty()) {
                         item {
                             val pagerState = rememberPagerState { post.imageUrls.size }
@@ -172,34 +167,7 @@ fun PostDetailScreen(
                     }
                 }
             }
-            if (uiState.isDeleting) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
         }
-    }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Xác nhận xóa") },
-            text = { Text("Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deletePost()
-                        showDeleteDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Xóa")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Hủy")
-                }
-            }
-        )
     }
 }
 

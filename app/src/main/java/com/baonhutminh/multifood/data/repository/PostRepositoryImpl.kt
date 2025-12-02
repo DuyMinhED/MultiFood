@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -89,6 +90,17 @@ class PostRepositoryImpl @Inject constructor(
             if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error creating post", e)
             Resource.Error(e.message ?: "Lỗi tạo bài đăng")
+        }
+    }
+
+    override suspend fun updatePost(post: Post): Resource<Unit> {
+        return try {
+            postsCollection.document(post.id).set(post, SetOptions.merge()).await()
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("PostRepositoryImpl", "Error updating post", e)
+            Resource.Error(e.message ?: "Lỗi cập nhật bài đăng")
         }
     }
 

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
@@ -43,6 +44,8 @@ fun CreatePostScreen(
 ) {
     val uiState by viewModel.uiState
     val isFormValid by viewModel.isFormValid
+    val isEditing by viewModel.isEditing
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect {
@@ -60,19 +63,24 @@ fun CreatePostScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tạo bài đăng mới") },
+                title = { Text(if (isEditing) "Chỉnh sửa bài viết" else "Tạo bài đăng mới") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
                 actions = {
+                    if (isEditing) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Xóa")
+                        }
+                    }
                     TextButton(
                         onClick = { viewModel.submitPost() },
-                        enabled = isFormValid && uiState !is CreatePostUiState.Loading // <-- Đã sửa
+                        enabled = isFormValid && uiState !is CreatePostUiState.Loading
                     ) {
                         Text(
-                            "ĐĂNG",
+                            text = if (isEditing) "LƯU" else "ĐĂNG",
                             fontWeight = FontWeight.Bold,
                             color = if (isFormValid && uiState !is CreatePostUiState.Loading)
                                 MaterialTheme.colorScheme.primary
@@ -121,7 +129,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.placeName.value,
                             onValueChange = { viewModel.placeName.value = it },
-                            label = { Text("Tên nhà hàng / quán ăn *") }, // <-- Đã sửa
+                            label = { Text("Tên nhà hàng / quán ăn *") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
@@ -131,7 +139,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.placeAddress.value,
                             onValueChange = { viewModel.placeAddress.value = it },
-                            label = { Text("Địa chỉ *") }, // <-- Đã sửa
+                            label = { Text("Địa chỉ *") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
@@ -179,7 +187,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.title.value,
                             onValueChange = { viewModel.title.value = it },
-                            label = { Text("Tiêu đề *") }, // <-- Đã sửa
+                            label = { Text("Tiêu đề *") },
                             placeholder = { Text("Món ăn ngon, không gian đẹp...") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -190,7 +198,7 @@ fun CreatePostScreen(
                         OutlinedTextField(
                             value = viewModel.content.value,
                             onValueChange = { viewModel.content.value = it },
-                            label = { Text("Nội dung đánh giá *") }, // <-- Đã sửa
+                            label = { Text("Nội dung đánh giá *") },
                             placeholder = { Text("Chia sẻ trải nghiệm của bạn...") },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -269,12 +277,36 @@ fun CreatePostScreen(
                         ) {
                             CircularProgressIndicator()
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Đang đăng bài...")
+                            Text("Đang xử lý...")
                         }
                     }
                 }
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Xác nhận xóa") },
+            text = { Text("Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deletePost()
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Xóa")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
     }
 }
 

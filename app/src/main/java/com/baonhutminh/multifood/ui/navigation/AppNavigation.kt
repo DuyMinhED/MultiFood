@@ -2,9 +2,11 @@ package com.baonhutminh.multifood.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.baonhutminh.multifood.ui.screens.CreatePostScreen
 import com.baonhutminh.multifood.ui.screens.HomeScreen
 import com.baonhutminh.multifood.ui.screens.LoginScreen
@@ -51,9 +53,9 @@ fun AppNavigation() {
                         navController.navigate(Screen.Profile.route)
                     },
                     onCreateClick = {
-                        navController.navigate(Screen.CreatePost.route)
+                        navController.navigate(Screen.CreatePost.createRoute())
                     },
-                    onSearchClick = { // <-- Đã thêm
+                    onSearchClick = {
                         navController.navigate(Screen.Search.route)
                     }
                 )
@@ -86,10 +88,18 @@ fun AppNavigation() {
         }
 
         composable(Screen.Detail.route) { backStackEntry ->
-            PostDetailScreen(onNavigateBack = { navController.popBackStack() })
+            PostDetailScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToEdit = { postId ->
+                    navController.navigate(Screen.CreatePost.createRoute(postId))
+                }
+            )
         }
 
-        composable(Screen.CreatePost.route) {
+        composable(
+            route = Screen.CreatePost.route,
+            arguments = listOf(navArgument("postId") { nullable = true })
+        ) {
             CreatePostScreen(onNavigateBack = { navController.popBackStack() })
         }
 
@@ -107,7 +117,7 @@ fun AppNavigation() {
             }
         }
 
-        composable(Screen.Search.route) { // <-- Đã thêm
+        composable(Screen.Search.route) {
             SearchScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onDetailClick = { postId ->
