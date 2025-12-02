@@ -2,6 +2,7 @@ package com.baonhutminh.multifood.data.local
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import com.baonhutminh.multifood.data.model.PostEntity
 import kotlinx.coroutines.flow.Flow
@@ -32,4 +33,14 @@ interface PostDao {
 
     @Query("DELETE FROM posts WHERE id = :postId")
     suspend fun delete(postId: String)
+
+    @Query("DELETE FROM posts")
+    suspend fun clearAll()
+
+    @Transaction
+    suspend fun syncPosts(posts: List<PostEntity>) {
+        // Xóa tất cả dữ liệu cũ và chèn dữ liệu mới trong một giao dịch
+        clearAll()
+        upsertAll(posts)
+    }
 }

@@ -3,6 +3,9 @@ package com.baonhutminh.multifood.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Article
@@ -31,27 +33,8 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +50,7 @@ import com.baonhutminh.multifood.ui.components.AppBottomBar
 import com.baonhutminh.multifood.ui.components.AppTopBar
 import com.baonhutminh.multifood.ui.navigation.Screen
 import com.baonhutminh.multifood.viewmodel.ProfileViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,10 +70,11 @@ fun ProfileScreen(
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
-
-    // Thêm biến state mới từ code cập nhật
     var showHelpDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -97,26 +82,39 @@ fun ProfileScreen(
         uri?.let { viewModel.uploadAvatar(it) }
     }
 
-    LaunchedEffect(successMessage) {
-        if (successMessage != null) {
-            kotlinx.coroutines.delay(2000)
-            viewModel.clearMessages()
+    LaunchedEffect(successMessage, errorMessage) {
+        successMessage?.let {
+            scope.launch {
+                snackbarHostState.showSnackbar(it)
+                viewModel.clearMessages()
+            }
+        }
+        errorMessage?.let {
+            scope.launch {
+                snackbarHostState.showSnackbar(it)
+                viewModel.clearMessages()
+            }
         }
     }
 
     Scaffold(
         topBar = {
-            //  AppTopBar của dự án
-            AppTopBar(Screen.Profile)
+            AppTopBar(
+                screen = Screen.Profile,
+                showSearch = false
+            )
         },
         bottomBar = {
-            //  AppBottomBar của dự án
             AppBottomBar(
-                onClickHome = onClickHome,
-                onAccountClick = {},
-                _selectehome = false
+                currentScreen = Screen.Profile, // <-- Đã sửa
+                onNavigate = { screen -> // <-- Đã sửa
+                    if (screen.route == Screen.Home.route) {
+                        onClickHome()
+                    }
+                }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Box(
             modifier = modifier
@@ -125,124 +123,153 @@ fun ProfileScreen(
         ) {
             if (isLoading && userProfile == null) {
                 CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.primary
                 )
             } else {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
+                        .padding(bottom = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // --- Phần Avatar ---
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { imagePickerLauncher.launch("image/*") }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                     ) {
-                        if (userProfile?.avatarUrl?.isNotEmpty() == true) {
-                            AsyncImage(
-                                model = userProfile?.avatarUrl,
-                                contentDescription = "Avatar",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Avatar mặc định",
-                                modifier = Modifier
-                                    .size(60.dp)
-                                    .align(Alignment.Center),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                                .padding(8.dp)
+                        Column(
+                            modifier = Modifier.padding(vertical = 32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "Đổi ảnh",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.fillMaxSize()
+                            Box(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { imagePickerLauncher.launch("image/*") }
+                            ) {
+                                if (userProfile?.avatarUrl?.isNotEmpty() == true) {
+                                    AsyncImage(
+                                        model = userProfile?.avatarUrl,
+                                        contentDescription = "Avatar",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "Avatar mặc định",
+                                        modifier = Modifier
+                                            .size(60.dp)
+                                            .align(Alignment.Center),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .size(36.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shadowElevation = 4.dp
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Đổi ảnh",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(8.dp)
+                                    )
+                                }
+                            }
+
+                            AnimatedVisibility(
+                                visible = isUpdating,
+                                enter = fadeIn(),
+                                exit = fadeOut()
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.width(120.dp),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Đang tải lên...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = userProfile?.name ?: "Người dùng",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                IconButton(onClick = { showEditNameDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = "Sửa tên",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = userProfile?.email ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (userProfile?.bio?.isNotEmpty() == true) {
+                                Text(
+                                    text = userProfile?.bio ?: "",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 32.dp)
+                                )
+                            }
+
+                            TextButton(onClick = { showEditBioDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (userProfile?.bio?.isNotEmpty() == true)
+                                        "Sửa giới thiệu"
+                                    else
+                                        "Thêm giới thiệu"
+                                )
+                            }
                         }
-                    }
-
-                    if (isUpdating) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LinearProgressIndicator(modifier = Modifier.width(120.dp))
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // --- Phần Tên ---
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = userProfile?.name ?: "Người dùng",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        IconButton(onClick = { showEditNameDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Edit,
-                                contentDescription = "Sửa tên",
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = userProfile?.email ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // --- Phần Bio ---
-                    if (userProfile?.bio?.isNotEmpty() == true) {
-                        Text(
-                            text = userProfile?.bio ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp)
-                        )
-                    }
-
-                    TextButton(onClick = { showEditBioDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (userProfile?.bio?.isNotEmpty() == true) "Sửa giới thiệu" else "Thêm giới thiệu"
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // --- Thống kê ---
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-
                         StatCard(
                             icon = Icons.Default.Article,
                             count = userProfile?.postCount ?: 0,
@@ -255,35 +282,51 @@ fun ProfileScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                    // --- Menu Chức Năng ---
+                    Text(
+                        text = "Cài đặt & Hỗ trợ",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = MaterialTheme.shapes.large,
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column {
                             ProfileMenuItem(
                                 icon = Icons.Default.Settings,
                                 title = "Cài đặt",
+                                subtitle = "Tùy chỉnh ứng dụng",
                                 onClick = onNavigateToSettings
                             )
                             HorizontalDivider()
                             ProfileMenuItem(
                                 icon = Icons.Default.Help,
                                 title = "Trợ giúp & Hỗ trợ",
-                                onClick = { showHelpDialog = true } // Đã thêm logic
+                                subtitle = "Câu hỏi thường gặp",
+                                onClick = { showHelpDialog = true }
                             )
                             HorizontalDivider()
                             ProfileMenuItem(
                                 icon = Icons.Default.Info,
                                 title = "Về ứng dụng",
-                                onClick = { showAboutDialog = true } // Đã thêm logic
+                                subtitle = "Phiên bản 1.0.0",
+                                onClick = { showAboutDialog = true }
                             )
                             HorizontalDivider()
                             ProfileMenuItem(
                                 icon = Icons.Default.Logout,
                                 title = "Đăng xuất",
+                                subtitle = "Thoát khỏi tài khoản",
                                 onClick = { showLogoutDialog = true },
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -293,32 +336,8 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-
-            // --- Hiển thị thông báo
-            successMessage?.let { message ->
-                Snackbar(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp)
-                ) {
-                    Text(message)
-                }
-            }
-
-            errorMessage?.let { message ->
-                Snackbar(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                ) {
-                    Text(message, color = MaterialTheme.colorScheme.onErrorContainer)
-                }
-            }
         }
     }
-
-    // --- Các Dialog ---
 
     if (showEditNameDialog) {
         EditTextDialog(
@@ -326,7 +345,7 @@ fun ProfileScreen(
             currentValue = userProfile?.name ?: "",
             onDismiss = { showEditNameDialog = false },
             onConfirm = { newName ->
-                viewModel.updateName(newName) // Check lại hàm trong ViewModel
+                viewModel.updateName(newName)
                 showEditNameDialog = false
             }
         )
@@ -348,8 +367,27 @@ fun ProfileScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Đăng xuất") },
-            text = { Text("Bạn có chắc muốn đăng xuất khỏi tài khoản?") },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Logout,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Đăng xuất",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Bạn có chắc muốn đăng xuất khỏi tài khoản?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -357,7 +395,11 @@ fun ProfileScreen(
                         onLogout()
                     }
                 ) {
-                    Text("Đăng xuất", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        "Đăng xuất",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
@@ -368,68 +410,97 @@ fun ProfileScreen(
         )
     }
 
-    // Dialog mới thêm
     if (showHelpDialog) {
         AlertDialog(
             onDismissRequest = { showHelpDialog = false },
-            title = { Text("Trợ giúp & Hỗ trợ") },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Help,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Trợ giúp & Hỗ trợ",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Column {
                     Text(
                         text = "Liên hệ hỗ trợ:",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Email: multifood@gmail.com")
-                    Text("Hotline: 082-741-0398")
+                    Text("📧 Email: multifood@gmail.com")
+                    Text("📞 Hotline: 082-741-0398")
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Câu hỏi thường gặp:",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("• Làm sao để đăng bài review?")
                     Text("• Làm sao để thay đổi mật khẩu?")
+                    Text("• Cách xóa bài viết của tôi?")
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showHelpDialog = false }) {
-                    Text("Đóng")
+                    Text("Đóng", fontWeight = FontWeight.Bold)
                 }
             }
         )
     }
 
-    // Dialog mới thêm
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
-            title = { Text("Về ứng dụng") },
+            icon = {
+                Text("🍜", style = MaterialTheme.typography.displayMedium)
+            },
+            title = {
+                Text(
+                    "MultiFood",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
             text = {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "MultiFood",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        "Phiên bản 1.0.0",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Phiên bản 1.0.0", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "Ứng dụng review đồ ăn hàng đầu Việt Nam.",
-                        textAlign = TextAlign.Center
+                        "Ứng dụng chia sẻ trải nghiệm ẩm thực hàng đầu Việt Nam.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "© 2024 MultiFood Team",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showAboutDialog = false }) {
-                    Text("Đóng")
+                    Text("Đóng", fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -443,13 +514,12 @@ private fun StatCard(
     label: String
 ) {
     Card(
-        modifier = Modifier
-            .width(140.dp)
-            .padding(8.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.width(160.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -461,7 +531,7 @@ private fun StatCard(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -472,7 +542,7 @@ private fun StatCard(
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
@@ -483,6 +553,7 @@ private fun StatCard(
 private fun ProfileMenuItem(
     icon: ImageVector,
     title: String,
+    subtitle: String = "",
     onClick: () -> Unit,
     tint: Color = MaterialTheme.colorScheme.onSurface
 ) {
@@ -493,23 +564,41 @@ private fun ProfileMenuItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
-        )
+        Surface(
+            shape = CircleShape,
+            color = tint.copy(alpha = 0.1f),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier
+                    .padding(8.dp)
+                    .size(24.dp)
+            )
+        }
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = tint,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = tint
+            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -526,19 +615,29 @@ private fun EditTextDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = maxLines,
-                singleLine = maxLines == 1
+                singleLine = maxLines == 1,
+                placeholder = { Text("Nhập nội dung...") }
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) {
-                Text("Lưu")
+            TextButton(
+                onClick = { onConfirm(text) },
+                enabled = text.isNotBlank()
+            ) {
+                Text("Lưu", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

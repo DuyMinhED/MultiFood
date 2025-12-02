@@ -1,112 +1,63 @@
 package com.baonhutminh.multifood.data.repository
 
+import android.util.Log
+import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.util.Resource
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
-import java.util.Date
 import javax.inject.Inject
 
 class CommentRepositoryImpl @Inject constructor(
-    private val db: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    private val commentDao: CommentDao // <-- Thêm DAO
 ) : CommentRepository {
 
-    private val commentCollection = db.collection("comments")
-    private val reviewCollection = db.collection("reviews")
+    private val commentCollection = firestore.collection("comments")
+    private val postCollection = firestore.collection("posts")
 
-    override suspend fun getCommentsByReview(reviewId: String): Resource<List<Comment>> {
+    // Đọc từ Room thay vì Firestore trực tiếp
+    override fun getCommentsForPost(postId: String): Flow<Resource<List<Comment>>> {
+        return commentDao.getCommentsForPost(postId).map { Resource.Success(it) }
+    }
+
+    // Thêm hàm refresh riêng cho comments
+    override suspend fun refreshCommentsForPost(postId: String): Resource<Unit> {
         return try {
-            val snapshot = commentCollection
-                .whereEqualTo("reviewId", reviewId)
-                .orderBy("createdAt", Query.Direction.DESCENDING)
-                .get()
-                .await()
+            val snapshot = commentCollection.whereEqualTo("reviewId", postId)
+                .orderBy("createdAt", Query.Direction.ASCENDING).get().await()
             val comments = snapshot.toObjects(Comment::class.java)
-            Resource.Success(comments)
-        } catch (e: Exception) {
-            Resource.Error(e.message ?: "Lỗi tải bình luận")
-        }
-    }
-
-    override suspend fun createComment(comment: Comment): Resource<String> {
-        return try {
-            val document = commentCollection.document()
-            // Sửa ở đây: Sử dụng Date() thay vì System.currentTimeMillis()
-            val payload = comment.copy(
-                id = document.id,
-                createdAt = Date(),
-                updatedAt = Date()
-            )
-            
-            // Tạo comment và update commentCount trong cùng một transaction
-            db.runTransaction { transaction ->
-                transaction.set(document, payload)
-                
-                // Tăng commentCount trong review
-                val reviewRef = reviewCollection.document(comment.reviewId)
-                val reviewSnap = transaction.get(reviewRef)
-                val currentCount = reviewSnap.getLong("commentCount") ?: 0
-                transaction.update(reviewRef, "commentCount", currentCount + 1)
-            }.await()
-
-            Resource.Success(document.id)
-        } catch (e: Exception) {
-            Resource.Error(e.message ?: "Lỗi tạo bình luận")
-        }
-    }
-
-    override suspend fun deleteComment(commentId: String): Resource<Unit> {
-        return try {
-            // Lấy comment để biết reviewId trước khi xóa
-            val commentSnap = commentCollection.document(commentId).get().await()
-            val comment = commentSnap.toObject(Comment::class.java)
-            
-            if (comment == null) {
-                return Resource.Error("Bình luận không tồn tại")
-            }
-
-            // Xóa comment và giảm commentCount trong cùng một transaction
-            db.runTransaction { transaction ->
-                transaction.delete(commentCollection.document(commentId))
-                
-                // Giảm commentCount trong review
-                val reviewRef = reviewCollection.document(comment.reviewId)
-                val reviewSnap = transaction.get(reviewRef)
-                val currentCount = reviewSnap.getLong("commentCount") ?: 0
-                if (currentCount > 0) {
-                    transaction.update(reviewRef, "commentCount", currentCount - 1)
-                }
-            }.await()
-
+            commentDao.upsertAll(comments)
             Resource.Success(Unit)
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Lỗi xóa bình luận")
+            Log.e("CommentRepositoryImpl", "Error refreshing comments", e)
+            Resource.Error(e.message ?: "Lỗi làm mới bình luận")
         }
     }
 
-    override suspend fun toggleLikeComment(commentId: String, userId: String, isCurrentlyLiked: Boolean): Resource<Boolean> {
+    // Giữ nguyên logic Transaction
+    override suspend fun createComment(comment: Comment, authorId: String): Resource<Unit> {
         return try {
-            val userRef = db.collection("users").document(userId)
-            val commentRef = commentCollection.document(commentId)
+            firestore.runTransaction {
+                transaction ->
+                val newCommentRef = commentCollection.document()
+                val postRef = postCollection.document(comment.reviewId)
 
-            db.runTransaction { transaction ->
-                val snapshot = transaction.get(commentRef)
-                val currentLikes = snapshot.getLong("likeCount") ?: 0
+                transaction.get(postRef) // Đọc trước khi ghi
 
-                if (isCurrentlyLiked) {
-                    transaction.update(userRef, "likedCommentIds", FieldValue.arrayRemove(commentId))
-                    transaction.update(commentRef, "likeCount", currentLikes - 1)
-                } else {
-                    transaction.update(userRef, "likedCommentIds", FieldValue.arrayUnion(commentId))
-                    transaction.update(commentRef, "likeCount", currentLikes + 1)
-                }
+                val newComment = comment.copy(id = newCommentRef.id, userId = authorId)
+
+                transaction.set(newCommentRef, newComment)
+                transaction.update(postRef, "commentCount", FieldValue.increment(1))
             }.await()
-
-            Resource.Success(!isCurrentlyLiked)
+            Resource.Success(Unit)
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Lỗi thao tác like")
+            Log.e("CommentRepositoryImpl", "Error creating comment", e)
+            Resource.Error(e.message ?: "Lỗi tạo bình luận")
         }
     }
 }

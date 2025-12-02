@@ -2,12 +2,15 @@ package com.baonhutminh.multifood.data.repository
 
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.util.Resource
+import kotlinx.coroutines.flow.Flow
 
 interface CommentRepository {
-    suspend fun getCommentsByReview(reviewId: String): Resource<List<Comment>>
-    suspend fun createComment(comment: Comment): Resource<String>
-    suspend fun deleteComment(commentId: String): Resource<Unit>
-    suspend fun toggleLikeComment(commentId: String, userId: String, isCurrentlyLiked: Boolean): Resource<Boolean>
+    // Đọc từ Room
+    fun getCommentsForPost(postId: String): Flow<Resource<List<Comment>>>
+
+    // Tải dữ liệu mới từ Firestore
+    suspend fun refreshCommentsForPost(postId: String): Resource<Unit>
+
+    // Tạo bình luận mới
+    suspend fun createComment(comment: Comment, authorId: String): Resource<Unit>
 }
-
-

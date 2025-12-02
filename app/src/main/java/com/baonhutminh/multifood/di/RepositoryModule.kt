@@ -2,6 +2,8 @@ package com.baonhutminh.multifood.di
 
 import com.baonhutminh.multifood.data.repository.AuthRepository
 import com.baonhutminh.multifood.data.repository.AuthRepositoryImpl
+import com.baonhutminh.multifood.data.repository.CommentRepository
+import com.baonhutminh.multifood.data.repository.CommentRepositoryImpl
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.PostRepositoryImpl
 import com.baonhutminh.multifood.data.repository.ProfileRepository
@@ -33,5 +35,9 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindPostRepository(impl: PostRepositoryImpl): PostRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCommentRepository(impl: CommentRepositoryImpl): CommentRepository
 
 }

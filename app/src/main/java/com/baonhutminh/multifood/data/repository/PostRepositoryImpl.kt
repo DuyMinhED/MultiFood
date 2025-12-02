@@ -2,9 +2,7 @@ package com.baonhutminh.multifood.data.repository
 
 import android.net.Uri
 import android.util.Log
-import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.local.PostDao
-import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.util.Resource
@@ -23,12 +21,10 @@ class PostRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     private val storage: FirebaseStorage,
-    private val postDao: PostDao,
-    private val commentDao: CommentDao
+    private val postDao: PostDao
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
-    private val commentsCollection = firestore.collection("comments")
     private val usersCollection = firestore.collection("users")
 
     override fun getAllPosts(): Flow<Resource<List<PostEntity>>> {
@@ -50,33 +46,17 @@ class PostRepositoryImpl @Inject constructor(
         return postDao.getPostsByIds(postIds).map { Resource.Success(it) }
     }
 
-    override fun getCommentsForPost(postId: String): Flow<Resource<List<Comment>>> {
-        return commentDao.getCommentsForPost(postId).map { Resource.Success(it) }
-    }
-
     override suspend fun refreshAllPosts(): Resource<Unit> {
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
             val postEntities = postDTOs.map { it.toEntity() }
-            postDao.upsertAll(postEntities)
+            // Sử dụng hàm sync mới để đảm bảo dữ liệu được đồng bộ chính xác
+            postDao.syncPosts(postEntities)
             Resource.Success(Unit)
         } catch (e: Exception) {
             Log.e("PostRepositoryImpl", "Error refreshing posts", e)
             Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
-        }
-    }
-
-    override suspend fun refreshCommentsForPost(postId: String): Resource<Unit> {
-        return try {
-            val snapshot = commentsCollection.whereEqualTo("reviewId", postId)
-                .orderBy("createdAt", Query.Direction.ASCENDING).get().await()
-            val comments = snapshot.toObjects(Comment::class.java)
-            commentDao.upsertAll(comments)
-            Resource.Success(Unit)
-        } catch (e: Exception) {
-            Log.e("PostRepositoryImpl", "Error refreshing comments", e)
-            Resource.Error(e.message ?: "Lỗi làm mới bình luận")
         }
     }
 
@@ -85,11 +65,11 @@ class PostRepositoryImpl @Inject constructor(
         return try {
             val newPostId = firestore.runTransaction {
                 transaction ->
-                val newPostRef = postsCollection.document()
                 val userRef = usersCollection.document(currentUser.uid)
+                transaction.get(userRef)
 
+                val newPostRef = postsCollection.document()
                 val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
-
                 transaction.set(newPostRef, newPost)
                 transaction.update(userRef, "postCount", FieldValue.increment(1))
 
@@ -100,19 +80,6 @@ class PostRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e("PostRepositoryImpl", "Error creating post", e)
             Resource.Error(e.message ?: "Lỗi tạo bài đăng")
-        }
-    }
-
-    override suspend fun addComment(comment: Comment): Resource<Unit> {
-        val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
-        return try {
-            val newCommentRef = commentsCollection.document()
-            val newComment = comment.copy(id = newCommentRef.id, userId = currentUser.uid)
-            newCommentRef.set(newComment).await()
-            Resource.Success(Unit)
-        } catch (e: Exception) {
-            Log.e("PostRepositoryImpl", "Error adding comment", e)
-            Resource.Error(e.message ?: "Lỗi thêm bình luận")
         }
     }
 
@@ -127,6 +94,26 @@ class PostRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e("PostRepositoryImpl", "Error uploading post image", e)
             Resource.Error(e.message ?: "Lỗi tải ảnh bài đăng lên")
+        }
+    }
+
+    override suspend fun deletePost(postId: String, authorId: String): Resource<Unit> {
+        return try {
+            firestore.runTransaction {
+                transaction ->
+                val postRef = postsCollection.document(postId)
+                val userRef = usersCollection.document(authorId)
+
+                transaction.get(postRef)
+
+                transaction.delete(postRef)
+                transaction.update(userRef, "postCount", FieldValue.increment(-1))
+
+            }.await()
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Log.e("PostRepositoryImpl", "Error deleting post", e)
+            Resource.Error(e.message ?: "Lỗi xóa bài viết")
         }
     }
 }
@@ -149,7 +136,7 @@ fun Post.toEntity(): PostEntity {
         likeCount = this.likeCount,
         commentCount = this.commentCount,
         status = this.status,
-        createdAt = this.createdAt, // <-- Sửa ở đây
-        updatedAt = this.updatedAt  // <-- Sửa ở đây
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt
     )
 }
