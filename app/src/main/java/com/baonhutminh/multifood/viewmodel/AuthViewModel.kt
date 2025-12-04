@@ -74,6 +74,13 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun signInWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            _loginState.value = Resource.Loading()
+            _loginState.value = authRepository.signInWithGoogle(idToken)
+        }
+    }
+
     fun resetPassword(email: String) {
         viewModelScope.launch {
             if (email.isBlank()) {
