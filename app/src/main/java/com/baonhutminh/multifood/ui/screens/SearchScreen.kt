@@ -29,6 +29,20 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showFilters by remember { mutableStateOf(false) }
+    
+    // Local state cho TextField để tránh conflict với debounced state từ ViewModel
+    // Giúp TextField phản hồi ngay lập tức khi user gõ, không bị delay do debounce
+    var searchText by remember { mutableStateOf("") }
+    
+    // Sync local state với ViewModel state khi ViewModel state thay đổi từ bên ngoài
+    // (ví dụ: khi clear button được click hoặc khi ViewModel reset state)
+    LaunchedEffect(uiState.searchQuery) {
+        // Chỉ sync nếu khác biệt để tránh infinite loop
+        // Điều này đảm bảo khi ViewModel state thay đổi (như clear), UI sẽ cập nhật
+        if (searchText != uiState.searchQuery) {
+            searchText = uiState.searchQuery
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -36,14 +50,20 @@ fun SearchScreen(
                 TopAppBar(
                     title = {
                         OutlinedTextField(
-                            value = uiState.searchQuery,
-                            onValueChange = viewModel::onSearchQueryChanged,
+                            value = searchText, // Sử dụng local state thay vì uiState.searchQuery
+                            onValueChange = { newValue ->
+                                searchText = newValue // Update local state ngay lập tức để TextField phản hồi ngay
+                                viewModel.onSearchQueryChanged(newValue) // Update ViewModel (có debounce ở ViewModel level)
+                            },
                             placeholder = { Text("Tìm kiếm...") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             trailingIcon = {
-                                if (uiState.searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                if (searchText.isNotEmpty()) {
+                                    IconButton(onClick = { 
+                                        searchText = "" // Clear local state ngay lập tức
+                                        viewModel.onSearchQueryChanged("") // Clear ViewModel state
+                                    }) {
                                         Icon(Icons.Default.Clear, contentDescription = "Xóa")
                                     }
                                 }
