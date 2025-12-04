@@ -1,17 +1,21 @@
 package com.baonhutminh.multifood.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -24,6 +28,7 @@ import java.util.Locale
 fun CommentItem(
     commentWithAuthor: CommentWithAuthor,
     isOwner: Boolean = false,
+    isLiked: Boolean = false,
     isEditing: Boolean = false,
     editingText: String = "",
     onEditingTextChange: (String) -> Unit = {},
@@ -31,6 +36,8 @@ fun CommentItem(
     onDeleteClick: () -> Unit = {},
     onSaveEdit: () -> Unit = {},
     onCancelEdit: () -> Unit = {},
+    onLikeClick: () -> Unit = {},
+    onReplyClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val comment = commentWithAuthor.comment
@@ -128,6 +135,42 @@ fun CommentItem(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                
+                // Like and Reply buttons
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Like button
+                    Row(
+                        modifier = Modifier.clickable { onLikeClick() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = if (isLiked) "Bỏ thích" else "Thích",
+                            modifier = Modifier.size(18.dp),
+                            tint = if (isLiked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (comment.likeCount > 0) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${comment.likeCount}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // Reply button
+                    Text(
+                        text = "Trả lời",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { onReplyClick() }
+                    )
+                }
             }
         }
     }

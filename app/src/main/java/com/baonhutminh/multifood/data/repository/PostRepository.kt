@@ -30,4 +30,10 @@ interface PostRepository {
     suspend fun uploadPostImage(imageUri: Uri): Resource<String>
 
     suspend fun deletePost(postId: String): Resource<Unit>
+    
+    // Real-time sync - trả về Flow để cancel khi không cần
+    fun observePostsRealtime(): Flow<Unit>
+    
+    // Real-time sync cho single post
+    fun observePostRealtime(postId: String): Flow<Unit>
 }

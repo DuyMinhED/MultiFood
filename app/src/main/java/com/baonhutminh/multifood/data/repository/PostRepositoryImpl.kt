@@ -5,9 +5,6 @@ import android.util.Log
 import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.local.PostImageDao
-import com.baonhutminh.multifood.data.local.UserDao
-import com.baonhutminh.multifood.data.model.User
-import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.PostImage
@@ -19,9 +16,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 import java.util.concurrent.CancellationException
@@ -33,9 +32,7 @@ class PostRepositoryImpl @Inject constructor(
     private val storage: FirebaseStorage,
     private val postDao: PostDao,
     private val commentDao: CommentDao,
-    private val postImageDao: PostImageDao,
-    private val userDao: UserDao,
-    private val restaurantRepository: RestaurantRepository
+    private val postImageDao: PostImageDao
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
@@ -60,8 +57,6 @@ class PostRepositoryImpl @Inject constructor(
     }
 
     override fun searchPosts(query: String, minRating: Float, minPrice: Int, maxPrice: Int): Flow<Resource<List<PostWithAuthor>>> {
-        // Tìm kiếm substring: nội dung trong thanh tìm kiếm chỉ cần có nằm trong dữ liệu là được
-        // COLLATE NOCASE trong PostDao hỗ trợ không phân biệt hoa/thường nhưng vẫn giữ dấu
         return postDao.searchPosts(query, minRating, minPrice, maxPrice).map { Resource.Success(it) }
     }
 
@@ -69,38 +64,7 @@ class PostRepositoryImpl @Inject constructor(
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
-            
-            // Collect unique user IDs để sync UserProfiles
-            val userIds = postDTOs.map { it.userId }.filter { it.isNotBlank() }.toSet()
-            syncUserProfiles(userIds)
-            
-            // Populate restaurant info cho mỗi post
-            val postEntities = postDTOs.map { postDTO ->
-                var restaurantName = ""
-                var restaurantAddress = ""
-                
-                if (postDTO.restaurantId.isNotBlank()) {
-                    // Lấy thông tin restaurant từ Room hoặc Firestore
-                    val restaurantResult = restaurantRepository.getRestaurantById(postDTO.restaurantId).first()
-                    when (restaurantResult) {
-                        is Resource.Success -> {
-                            restaurantResult.data?.let { restaurant ->
-                                restaurantName = restaurant.name
-                                restaurantAddress = restaurant.address
-                            }
-                        }
-                        else -> {
-                            // Giữ giá trị mặc định (rỗng)
-                        }
-                    }
-                }
-                
-                postDTO.toEntity(
-                    restaurantName = restaurantName,
-                    restaurantAddress = restaurantAddress
-                )
-            }
-            
+            val postEntities = postDTOs.map { it.toEntity() }
             postDao.syncPosts(postEntities)
             
             // Sync images cho tất cả posts
@@ -116,50 +80,15 @@ class PostRepositoryImpl @Inject constructor(
             Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
         }
     }
-
+    
     override suspend fun refreshPost(postId: String): Resource<Unit> {
         return try {
-            val postDoc = postsCollection.document(postId).get().await()
-            if (!postDoc.exists()) {
-                return Resource.Error("Bài viết không tồn tại")
+            val doc = postsCollection.document(postId).get().await()
+            val post = doc.toObject(Post::class.java)
+            if (post != null) {
+                postDao.upsert(post.toEntity())
+                syncPostImages(postId)
             }
-            
-            val postDTO = postDoc.toObject(Post::class.java) ?: return Resource.Error("Lỗi đọc dữ liệu bài viết")
-            
-            // Sync UserProfile của author
-            if (postDTO.userId.isNotBlank()) {
-                syncUserProfiles(setOf(postDTO.userId))
-            }
-            
-            // Populate restaurant info
-            var restaurantName = ""
-            var restaurantAddress = ""
-            
-            if (postDTO.restaurantId.isNotBlank()) {
-                val restaurantResult = restaurantRepository.getRestaurantById(postDTO.restaurantId).first()
-                when (restaurantResult) {
-                    is Resource.Success -> {
-                        restaurantResult.data?.let { restaurant ->
-                            restaurantName = restaurant.name
-                            restaurantAddress = restaurant.address
-                        }
-                    }
-                    else -> {
-                        // Giữ giá trị mặc định (rỗng)
-                    }
-                }
-            }
-            
-            val postEntity = postDTO.toEntity(
-                restaurantName = restaurantName,
-                restaurantAddress = restaurantAddress
-            )
-            
-            postDao.upsertAll(listOf(postEntity))
-            
-            // Sync images cho post này
-            syncPostImages(postId)
-            
             Resource.Success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -185,6 +114,9 @@ class PostRepositoryImpl @Inject constructor(
                     order = image?.order ?: index
                 )
             }
+            
+            // Xóa images cũ trước khi insert mới để tránh duplicate
+            postImageDao.deleteImagesForPost(postId)
             
             if (postImages.isNotEmpty()) {
                 postImageDao.upsertAll(postImages)
@@ -263,74 +195,86 @@ class PostRepositoryImpl @Inject constructor(
             Resource.Error(e.message ?: "Lỗi xóa bài viết")
         }
     }
-
-    /**
-     * Sync UserProfiles từ Firestore vào Room database
-     * Fetch users in batches để tránh vượt quá giới hạn Firestore
-     */
-    private suspend fun syncUserProfiles(userIds: Set<String>) {
-        if (userIds.isEmpty()) return
-
-        try {
-            val usersCollection = firestore.collection("users")
-            val userProfiles = mutableListOf<UserProfile>()
-
-            // Fetch users in batches (Firestore limit is 10 per batch for whereIn)
-            // Nhưng vì chúng ta dùng document().get(), không có giới hạn batch
-            // Tuy nhiên để tối ưu, chúng ta vẫn fetch từng batch
-            userIds.chunked(10).forEach { batch ->
-                val futures = batch.map { userId ->
-                    usersCollection.document(userId).get()
+    
+    override fun observePostsRealtime(): Flow<Unit> = callbackFlow {
+        var isFirstSync = true
+        
+        val listener = postsCollection
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("PostRepositoryImpl", "Realtime sync error", error)
+                    return@addSnapshotListener
                 }
-                val snapshots = futures.map { it.await() }
-
-                snapshots.forEach { snapshot ->
-                    if (snapshot.exists()) {
-                        val userDto = snapshot.toObject(User::class.java)
-                        userDto?.let { user ->
-                            userProfiles.add(
-                                UserProfile(
-                                    id = user.id,
-                                    name = user.name,
-                                    username = user.username,
-                                    email = user.email ?: "",
-                                    phoneNumber = user.phoneNumber,
-                                    avatarUrl = user.avatarUrl,
-                                    bio = user.bio,
-                                    isVerified = user.isVerified,
-                                    postCount = user.postCount,
-                                    followerCount = user.followerCount,
-                                    followingCount = user.followingCount,
-                                    totalLikesReceived = user.totalLikesReceived,
-                                    createdAt = user.createdAt,
-                                    updatedAt = user.updatedAt
-                                )
-                            )
+                
+                snapshot?.let { snap ->
+                    launch {
+                        try {
+                            val postDTOs = snap.toObjects(Post::class.java)
+                            val postEntities = postDTOs.map { it.toEntity() }
+                            
+                            // Dùng upsertAll thay vì syncPosts để không xóa dữ liệu local
+                            // Giữ lại optimistic update
+                            if (isFirstSync) {
+                                postDao.syncPosts(postEntities) // Lần đầu sync đầy đủ
+                                for (post in postDTOs) {
+                                    syncPostImages(post.id)
+                                }
+                                isFirstSync = false
+                            } else {
+                                postDao.upsertAll(postEntities) // Các lần sau chỉ update
+                            }
+                            
+                            trySend(Unit)
+                        } catch (e: Exception) {
+                            Log.e("PostRepositoryImpl", "Error processing realtime update", e)
                         }
                     }
                 }
             }
-
-            if (userProfiles.isNotEmpty()) {
-                userDao.upsertAll(userProfiles)
+        
+        awaitClose { listener.remove() }
+    }
+    
+    override fun observePostRealtime(postId: String): Flow<Unit> = callbackFlow {
+        var isFirstSync = true
+        
+        val listener = postsCollection.document(postId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("PostRepositoryImpl", "Realtime sync error for post $postId", error)
+                    return@addSnapshotListener
+                }
+                
+                snapshot?.let { snap ->
+                    launch {
+                        try {
+                            val post = snap.toObject(Post::class.java)
+                            if (post != null) {
+                                postDao.upsert(post.toEntity())
+                                
+                                // Chỉ sync images lần đầu
+                                if (isFirstSync) {
+                                    syncPostImages(postId)
+                                    isFirstSync = false
+                                }
+                            }
+                            trySend(Unit)
+                        } catch (e: Exception) {
+                            Log.e("PostRepositoryImpl", "Error processing realtime update", e)
+                        }
+                    }
+                }
             }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e("PostRepositoryImpl", "Error syncing user profiles", e)
-            // Không throw error để không làm gián đoạn refresh posts
-        }
+        
+        awaitClose { listener.remove() }
     }
 }
 
 // Hàm này cần được cập nhật vì PostEntity đã thay đổi
 // Các trường cache (userName, userAvatarUrl, restaurantName, restaurantAddress) 
 // sẽ được populate khi sync từ Firestore với thông tin đầy đủ
-fun Post.toEntity(
-    restaurantName: String = "",
-    restaurantAddress: String = "",
-    userName: String = "",
-    userAvatarUrl: String = ""
-): PostEntity {
+fun Post.toEntity(): PostEntity {
     return PostEntity(
         id = this.id,
         userId = this.userId,
@@ -345,9 +289,10 @@ fun Post.toEntity(
         status = this.status,
         createdAt = this.createdAt,
         updatedAt = this.updatedAt,
-        userName = userName,
-        userAvatarUrl = userAvatarUrl,
-        restaurantName = restaurantName,
-        restaurantAddress = restaurantAddress
+        // Các trường cache sẽ được populate khi có thông tin đầy đủ từ User và Restaurant
+        userName = "",
+        userAvatarUrl = "",
+        restaurantName = "",
+        restaurantAddress = ""
     )
 }

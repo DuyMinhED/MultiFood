@@ -15,6 +15,9 @@ activityCompose = "1.9.3"
 composeBom = "2024.11.00"
 ksp = "2.0.21-1.0.27"
 room = "2.6.1"
+mockk = "1.13.13"
+turbine = "1.1.0"
+junitJupiter = "5.11.0"
 
 # --- Navigation ---
 navigationCompose = "2.8.4"
@@ -81,6 +84,13 @@ coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 # --- Coroutines ---
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+
+# --- Testing ---
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junitJupiter" }
+junit-vintage = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junitJupiter" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

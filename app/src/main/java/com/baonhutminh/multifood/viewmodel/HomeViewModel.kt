@@ -1,8 +1,8 @@
 package com.baonhutminh.multifood.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.UserProfile
@@ -12,9 +12,14 @@ import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val TAG = "HomeViewModel"
+private const val LIKE_DEBOUNCE_MS = 500L // Debounce 500ms để tránh spam
 
 enum class PostFilterTab(val title: String) {
     ALL("Tất cả"),
@@ -26,7 +31,7 @@ data class HomeUiState(
     val posts: List<PostWithAuthor> = emptyList(),
     val userProfile: UserProfile? = null,
     val likedPosts: List<PostLikeEntity> = emptyList(),
-    val postImages: Map<String, List<String>> = emptyMap(), // Map postId -> List of image URLs
+    val postImages: Map<String, List<String>> = emptyMap(),
     val selectedTab: PostFilterTab = PostFilterTab.ALL,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -44,13 +49,15 @@ private data class HomeIntermediateState(
 class HomeViewModel @Inject constructor(
     private val postRepository: PostRepository,
     private val profileRepository: ProfileRepository,
-    private val postImageDao: PostImageDao,
-    private val postDao: PostDao
+    private val postImageDao: PostImageDao
 ) : ViewModel() {
 
     private val _selectedTab = MutableStateFlow(PostFilterTab.ALL)
     private val _isLoading = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
+    
+    // Debounce jobs cho từng post để tránh spam
+    private val likeDebounceJobs = mutableMapOf<String, Job>()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val postsFlow = _selectedTab.flatMapLatest { tab ->
@@ -125,15 +132,19 @@ class HomeViewModel @Inject constructor(
         initialValue = HomeUiState()
     )
 
-
     init {
+        // Realtime sync posts
+        viewModelScope.launch {
+            postRepository.observePostsRealtime()
+                .catch { e -> Log.e(TAG, "Realtime sync error", e) }
+                .collect()
+        }
+        
+        // Sync likes và user profile lần đầu
         viewModelScope.launch {
             _isLoading.value = true
-            val result = postRepository.refreshAllPosts()
-            if (result is Resource.Error) {
-                _errorMessage.value = result.message ?: "Không thể làm mới danh sách bài đăng"
-            }
             profileRepository.refreshUserProfile()
+            profileRepository.syncLikesFromFirestore()
             _isLoading.value = false
         }
     }
@@ -157,19 +168,20 @@ class HomeViewModel @Inject constructor(
     }
 
     fun toggleLike(postId: String) {
-        viewModelScope.launch {
+        // Cancel job cũ nếu đang pending
+        likeDebounceJobs[postId]?.cancel()
+        
+        likeDebounceJobs[postId] = viewModelScope.launch {
+            // Debounce - đợi user ngừng spam
+            delay(LIKE_DEBOUNCE_MS)
+            
             val isLiked = uiState.value.likedPosts.any { it.postId == postId }
-            when (val result = profileRepository.toggleLike(postId, isLiked)) {
-                is Resource.Success -> {
-                    val delta = if (isLiked) -1 else 1
-                    postDao.updateLikeCount(postId, delta)
-                }
-                is Resource.Error -> {
-                    _errorMessage.value = result.message ?: "Không thể cập nhật trạng thái yêu thích"
-                }
-
-                is Resource.Loading<*> -> TODO()
+            val result = profileRepository.toggleLike(postId, isLiked)
+            if (result is Resource.Error) {
+                _errorMessage.value = result.message ?: "Không thể cập nhật trạng thái yêu thích"
             }
+            
+            likeDebounceJobs.remove(postId)
         }
     }
 

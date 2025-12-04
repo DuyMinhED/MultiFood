@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
@@ -35,6 +34,8 @@ class ProfileRepositoryImpl @Inject constructor(
     private val userDao: UserDao,
     private val postLikeDao: PostLikeDao,
     private val authRepository: AuthRepository
+    private val postLikeDao: PostLikeDao,
+    private val postDao: PostDao
 ) : ProfileRepository {
 
     private val usersCollection = firestore.collection("users")
@@ -48,7 +49,6 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     override fun getLikedPostsForCurrentUser(): Flow<List<PostLikeEntity>> {
         val currentUserId = auth.currentUser?.uid ?: return kotlinx.coroutines.flow.flowOf(emptyList())
         return likesCollection.whereEqualTo("userId", currentUserId)
@@ -240,17 +240,5 @@ class ProfileRepositoryImpl @Inject constructor(
             Log.e("ProfileRepositoryImpl", "Error updating phone number", e)
             Resource.Error(e.message ?: "Lỗi cập nhật số điện thoại")
         }
-    }
-    
-    override fun getCurrentUserProviders(): List<String> {
-        return authRepository.getCurrentUserProviders()
-    }
-    
-    override suspend fun linkGoogleAccount(idToken: String): Resource<Unit> {
-        return authRepository.linkGoogleAccount(idToken)
-    }
-    
-    override suspend fun linkEmailPassword(email: String, password: String): Resource<Unit> {
-        return authRepository.linkEmailPassword(email, password)
     }
 }
