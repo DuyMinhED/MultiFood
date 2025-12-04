@@ -99,9 +99,11 @@ fun SearchScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(uiState.results, key = { it.post.id }) { postWithAuthor ->
-                            val isLiked = uiState.currentUser?.likedPostIds?.contains(postWithAuthor.post.id) == true
+                            val isLiked = uiState.likedPosts.any { it.postId == postWithAuthor.post.id }
+                            val images = uiState.postImages[postWithAuthor.post.id] ?: emptyList()
                             PostItemCard(
                                 postWithAuthor = postWithAuthor,
+                                images = images,
                                 isLiked = isLiked,
                                 onLikeClick = { viewModel.toggleLike(postWithAuthor.post.id) },
                                 onItemClick = { onDetailClick(postWithAuthor.post.id) }

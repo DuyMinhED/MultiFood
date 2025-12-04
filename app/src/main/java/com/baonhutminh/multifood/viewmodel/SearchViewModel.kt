@@ -2,6 +2,8 @@ package com.baonhutminh.multifood.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.baonhutminh.multifood.data.local.PostImageDao
+import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.data.repository.PostRepository
@@ -21,14 +23,17 @@ data class SearchUiState(
     val searchQuery: String = "",
     val minRating: Float = 0f,
     val priceRange: ClosedFloatingPointRange<Float> = 0f..500000f,
-    val currentUser: UserProfile? = null
+    val currentUser: UserProfile? = null,
+    val likedPosts: List<PostLikeEntity> = emptyList(),
+    val postImages: Map<String, List<String>> = emptyMap() // Map postId -> List of image URLs
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val postRepository: PostRepository,
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val postImageDao: PostImageDao
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -39,41 +44,79 @@ class SearchViewModel @Inject constructor(
         _searchQuery.debounce(500),
         _minRating,
         _priceRange,
-        profileRepository.getUserProfile()
-    ) { query, rating, price, userProfileRes ->
+        profileRepository.getUserProfile(),
+        profileRepository.getLikedPostsForCurrentUser() // <-- Đã thêm
+    ) { query, rating, price, userProfileRes, likedPosts ->
         val user = (userProfileRes as? Resource.Success)?.data
         if (query.isBlank()) {
-            flowOf(SearchUiState(searchQuery = query, minRating = rating, priceRange = price, currentUser = user))
-        } else {
-            postRepository.searchPosts(
-                query = query,
+            return@combine flowOf(SearchUiState(
+                searchQuery = query,
                 minRating = rating,
-                minPrice = price.start.toInt(),
-                maxPrice = price.endInclusive.toInt()
-            ).map { resource ->
-                when (resource) {
-                    is Resource.Success -> SearchUiState(
-                        results = resource.data ?: emptyList(),
-                        searchQuery = query,
-                        minRating = rating,
-                        priceRange = price,
-                        currentUser = user
-                    )
-                    is Resource.Error -> SearchUiState(
-                        errorMessage = resource.message,
-                        searchQuery = query,
-                        minRating = rating,
-                        priceRange = price,
-                        currentUser = user
-                    )
-                    else -> SearchUiState(
-                        isLoading = true,
-                        searchQuery = query,
-                        minRating = rating,
-                        priceRange = price,
-                        currentUser = user
-                    )
+                priceRange = price,
+                currentUser = user,
+                likedPosts = likedPosts,
+                postImages = emptyMap()
+            ))
+        }
+
+        postRepository.searchPosts(
+            query = query,
+            minRating = rating,
+            minPrice = price.start.toInt(),
+            maxPrice = price.endInclusive.toInt()
+        ).flatMapLatest { resource ->
+            when (resource) {
+                is Resource.Success -> {
+                    val posts = resource.data ?: emptyList()
+                    // Load images cho tất cả posts
+                    if (posts.isEmpty()) {
+                        flowOf(SearchUiState(
+                            results = emptyList(),
+                            searchQuery = query,
+                            minRating = rating,
+                            priceRange = price,
+                            currentUser = user,
+                            likedPosts = likedPosts,
+                            postImages = emptyMap()
+                        ))
+                    } else {
+                        combine(
+                            posts.map { post ->
+                                postImageDao.getImagesForPost(post.post.id)
+                                    .map { images -> post.post.id to images.map { it.url } }
+                            }
+                        ) { imageLists ->
+                            val postImagesMap = imageLists.associate { it.first to it.second }
+                            SearchUiState(
+                                results = posts,
+                                searchQuery = query,
+                                minRating = rating,
+                                priceRange = price,
+                                currentUser = user,
+                                likedPosts = likedPosts,
+                                postImages = postImagesMap
+                            )
+                        }
+                    }
                 }
+                is Resource.Error -> flowOf(SearchUiState(
+                    errorMessage = resource.message,
+                    searchQuery = query,
+                    minRating = rating,
+                    priceRange = price,
+                    currentUser = user,
+                    likedPosts = likedPosts,
+                    postImages = emptyMap()
+                ))
+                else -> flowOf(SearchUiState(
+                    isLoading = true,
+                    searchQuery = query,
+                    minRating = rating,
+                    priceRange = price,
+                    currentUser = user,
+                    likedPosts = likedPosts,
+                    postImages = emptyMap()
+                ))
             }
         }
     }.flatMapLatest { it }
@@ -97,7 +140,12 @@ class SearchViewModel @Inject constructor(
 
     fun toggleLike(postId: String) {
         viewModelScope.launch {
-            profileRepository.toggleLike(postId)
+            val isLiked = uiState.value.likedPosts.any { it.postId == postId }
+            val result = profileRepository.toggleLike(postId, isLiked)
+            // Refresh post để cập nhật likeCount từ Firestore (Cloud Functions đã cập nhật)
+            if (result is Resource.Success) {
+                postRepository.refreshAllPosts()
+            }
         }
     }
 }

@@ -4,12 +4,14 @@ import android.net.Uri
 import android.util.Log
 import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.local.PostDao
+import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.PostEntity
+import com.baonhutminh.multifood.data.model.PostImage
+import com.baonhutminh.multifood.data.model.PostImageEntity
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
@@ -26,11 +28,11 @@ class PostRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val storage: FirebaseStorage,
     private val postDao: PostDao,
-    private val commentDao: CommentDao
+    private val commentDao: CommentDao,
+    private val postImageDao: PostImageDao
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
-    private val usersCollection = firestore.collection("users")
 
     override fun getAllPosts(): Flow<Resource<List<PostWithAuthor>>> {
         return postDao.getAllPosts().map { Resource.Success(it) }
@@ -61,6 +63,13 @@ class PostRepositoryImpl @Inject constructor(
             val postDTOs = snapshot.toObjects(Post::class.java)
             val postEntities = postDTOs.map { it.toEntity() }
             postDao.syncPosts(postEntities)
+            
+            // Sync images cho tất cả posts
+            postImageDao.clearAll()
+            for (post in postDTOs) {
+                syncPostImages(post.id)
+            }
+            
             Resource.Success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -68,24 +77,55 @@ class PostRepositoryImpl @Inject constructor(
             Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
         }
     }
+    
+    private suspend fun syncPostImages(postId: String) {
+        try {
+            val imagesSnapshot = postsCollection.document(postId)
+                .collection("images")
+                .orderBy("order", Query.Direction.ASCENDING)
+                .get()
+                .await()
+            
+            val postImages = imagesSnapshot.documents.mapIndexed { index, doc ->
+                val image = doc.toObject(PostImage::class.java)
+                PostImageEntity(
+                    dbId = 0, // Auto-generated
+                    postId = postId,
+                    url = image?.url ?: "",
+                    order = image?.order ?: index
+                )
+            }
+            
+            if (postImages.isNotEmpty()) {
+                postImageDao.upsertAll(postImages)
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("PostRepositoryImpl", "Error syncing images for post $postId", e)
+        }
+    }
 
-    override suspend fun createPost(post: Post): Resource<String> {
+    override suspend fun createPost(post: Post, images: List<PostImage>): Resource<String> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
         return try {
-            val newPostId = firestore.runTransaction {
-                transaction ->
-                val userRef = usersCollection.document(currentUser.uid)
-                transaction.get(userRef)
+            val newPostRef = postsCollection.document()
+            val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
 
-                val newPostRef = postsCollection.document()
-                val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
-                transaction.set(newPostRef, newPost)
-                transaction.update(userRef, "postCount", FieldValue.increment(1))
+            // Chạy batch write để tạo bài viết và sub-collection images
+            firestore.batch().apply {
+                set(newPostRef, newPost)
+                images.forEachIndexed { index, image ->
+                    val imageRef = newPostRef.collection("images").document()
+                    set(imageRef, image.copy(order = index))
+                }
+            }.commit().await()
 
-                newPostRef.id
-            }.await()
+            // Sync images vào Room
+            syncPostImages(newPostRef.id)
 
-            Resource.Success(newPostId)
+            // Logic tăng postCount sẽ do Cloud Function xử lý
+
+            Resource.Success(newPostRef.id)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error creating post", e)
@@ -110,8 +150,8 @@ class PostRepositoryImpl @Inject constructor(
             val imageId = UUID.randomUUID().toString()
             val storageRef = storage.reference.child("post_images/$imageId.jpg")
             storageRef.putFile(imageUri).await()
-            val downloadUrl = storageRef.downloadUrl.await().toString()
-            Resource.Success(downloadUrl)
+            storageRef.downloadUrl.await().toString()
+            Resource.Success(storageRef.downloadUrl.await().toString())
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error uploading post image", e)
@@ -119,29 +159,13 @@ class PostRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun deletePost(postId: String, authorId: String): Resource<Unit> {
+    override suspend fun deletePost(postId: String): Resource<Unit> {
         return try {
-            val commentsToDelete = firestore.collection("comments").whereEqualTo("reviewId", postId).get().await()
-
-            firestore.runTransaction {
-                transaction ->
-                val postRef = postsCollection.document(postId)
-                val userRef = usersCollection.document(authorId)
-
-                transaction.get(postRef)
-
-                for (doc in commentsToDelete) {
-                    transaction.delete(doc.reference)
-                }
-
-                transaction.delete(postRef)
-                transaction.update(userRef, "postCount", FieldValue.increment(-1))
-
-            }.await()
-
-            commentDao.deleteCommentsForPost(postId)
+            // Chỉ cần xóa document `post`. Cloud Function sẽ xử lý việc xóa sub-collections
+            // và cập nhật các counter liên quan.
+            postsCollection.document(postId).delete().await()
             postDao.delete(postId)
-
+            postImageDao.deleteImagesForPost(postId)
             Resource.Success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -151,23 +175,28 @@ class PostRepositoryImpl @Inject constructor(
     }
 }
 
+// Hàm này cần được cập nhật vì PostEntity đã thay đổi
+// Các trường cache (userName, userAvatarUrl, restaurantName, restaurantAddress) 
+// sẽ được populate khi sync từ Firestore với thông tin đầy đủ
 fun Post.toEntity(): PostEntity {
     return PostEntity(
         id = this.id,
         userId = this.userId,
+        restaurantId = this.restaurantId,
         title = this.title,
-        rating = this.rating,
         content = this.content,
-        imageUrls = this.imageUrls,
+        rating = this.rating,
         pricePerPerson = this.pricePerPerson,
-        visitTimestamp = this.visitTimestamp,
-        placeName = this.placeName,
-        placeAddress = this.placeAddress,
-        placeCoverImage = this.placeCoverImage,
+        visitDate = this.visitDate,
         likeCount = this.likeCount,
         commentCount = this.commentCount,
         status = this.status,
         createdAt = this.createdAt,
-        updatedAt = this.updatedAt
+        updatedAt = this.updatedAt,
+        // Các trường cache sẽ được populate khi có thông tin đầy đủ từ User và Restaurant
+        userName = "",
+        userAvatarUrl = "",
+        restaurantName = "",
+        restaurantAddress = ""
     )
 }

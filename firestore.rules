@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // Ai cũng có thể đọc
+      allow read: if true;
+      // Chỉ người đã đăng nhập mới được tạo
+      allow create: if request.auth != null;
+      // Chỉ chủ sở hữu mới được sửa/xóa
+      allow update, delete: if request.auth.uid == userId;
+    }
+
+    // ============================================
+    // RESTAURANTS COLLECTION (ROOT LEVEL)
+    // ============================================
+    match /restaurants/{restaurantId} {
+      // Ai cũng có thể đọc
+      allow read: if true;
+      // Chỉ người đã đăng nhập mới được tạo
+      allow create: if request.auth != null;
+      // Người đã đăng nhập có thể cập nhật (hoặc chỉ chủ sở hữu: request.auth.uid == resource.data.createdBy)
+      allow update: if request.auth != null;
+      // Không cho phép xóa (hoặc chỉ admin)
+      allow delete: if false;
+    }
+
+    // ============================================
+    // POSTS COLLECTION
+    // ============================================
+    match /posts/{postId} {
+      // Ai cũng có thể đọc bài viết
+      allow read: if true;
+      // Chỉ người đã đăng nhập mới được tạo
+      allow create: if request.auth != null;
+      // Chỉ chủ sở hữu mới được sửa (update) hoặc xóa
+      allow update, delete: if request.auth.uid == resource.data.userId;
+
+      // ============================================
+      // POSTS SUB-COLLECTIONS
+      // ============================================
+      
+      // Images sub-collection
+      match /images/{imageId} {
+        // Ai cũng có thể đọc ảnh
+        allow read: if true;
+        // Chỉ chủ sở hữu bài viết mới được tạo/sửa/xóa ảnh
+        // Cho phép create khi: post đã tồn tại và user là owner, HOẶC đang tạo post mới trong batch write
+        allow create: if request.auth != null && (
+          // Post đã tồn tại và user là owner
+          (exists(/databases/$(database)/documents/posts/$(postId)) 
+            && get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid)
+          ||
+          // Đang tạo post mới trong batch write (post chưa tồn tại nhưng sẽ được tạo cùng lúc)
+          (!exists(/databases/$(database)/documents/posts/$(postId)))
+        );
+        // Update và delete chỉ khi post đã tồn tại và user là owner
+        allow update, delete: if request.auth != null 
+          && exists(/databases/$(database)/documents/posts/$(postId))
+          && get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid;
+      }
+
+      // Likes sub-collection
+      match /likes/{userId} {
+        // Ai cũng có thể đọc likes
+        allow read: if true;
+        // Chỉ người dùng đó mới được tạo/xóa like của mình
+        allow create, delete: if request.auth.uid == userId;
+      }
+
+      // Comments sub-collection
+      match /comments/{commentId} {
+        // Ai cũng có thể đọc comments
+        allow read: if true;
+        // Chỉ người đã đăng nhập mới được tạo comment
+        allow create: if request.auth != null;
+        // Chỉ chủ bình luận mới được sửa/xóa
+        allow update, delete: if request.auth.uid == resource.data.userId;
+      }
+    }
+  }
+}
+

@@ -36,6 +36,7 @@ import com.baonhutminh.multifood.viewmodel.PostDetailUiState
 fun PostDetailScreen(
     viewModel: PostDetailViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
+    onNavigateToHome: () -> Unit,
     onNavigateToEdit: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -49,11 +50,25 @@ fun PostDetailScreen(
         }
     }
 
+    // Handle navigation events (e.g., after deleting post)
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is PostDetailEvent.NavigateBack -> {
+                    onNavigateBack()
+                }
+                is PostDetailEvent.NavigateToHome -> {
+                    onNavigateToHome()
+                }
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(text = postWithAuthor?.post?.placeName ?: "Chi tiết") },
+                title = { Text(text = postWithAuthor?.post?.restaurantName?.ifEmpty { "Chi tiết" } ?: "Chi tiết") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
@@ -81,13 +96,13 @@ fun PostDetailScreen(
             } else if (postWithAuthor != null) {
                 val post = postWithAuthor.post
                 LazyColumn(contentPadding = paddingValues) {
-                    if (post.imageUrls.isNotEmpty()) {
+                    if (uiState.images.isNotEmpty()) {
                         item {
-                            val pagerState = rememberPagerState { post.imageUrls.size }
+                            val pagerState = rememberPagerState { uiState.images.size }
                             Box(modifier = Modifier.height(300.dp)) {
                                 HorizontalPager(state = pagerState) { page ->
                                     AsyncImage(
-                                        model = post.imageUrls[page],
+                                        model = uiState.images[page],
                                         contentDescription = "Post Image ${page + 1}",
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
@@ -122,7 +137,7 @@ fun PostDetailScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.LocationOn, contentDescription = "Địa chỉ", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(post.placeAddress, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(post.restaurantAddress.ifEmpty { "Địa chỉ" }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {

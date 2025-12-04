@@ -90,6 +90,11 @@ fun AppNavigation() {
         composable(Screen.Detail.route) { backStackEntry ->
             PostDetailScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                },
                 onNavigateToEdit = { postId ->
                     navController.navigate(Screen.CreatePost.createRoute(postId))
                 }

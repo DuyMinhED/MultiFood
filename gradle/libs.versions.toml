@@ -1,7 +1,7 @@
 
 [versions]
 # --- Core Android (Stable) ---
-agp = "8.7.2"
+agp = "8.13.1"
 datastorePreferences = "1.2.0"
 gson = "2.13.2"
 kotlin = "2.0.21"

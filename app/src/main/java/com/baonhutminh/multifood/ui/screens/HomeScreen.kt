@@ -178,12 +178,14 @@ fun HomeScreen(
                                 items = uiState.posts,
                                 key = { it.post.id }
                             ) { postWithAuthor ->
-                                val isLiked = uiState.userProfile?.likedPostIds?.contains(postWithAuthor.post.id) == true
+                                val isLiked = uiState.likedPosts.any { it.postId == postWithAuthor.post.id }
+                                val images = uiState.postImages[postWithAuthor.post.id] ?: emptyList()
                                 PostItemCard(
                                     postWithAuthor = postWithAuthor,
                                     isLiked = isLiked,
                                     onLikeClick = { viewModel.toggleLike(postWithAuthor.post.id) },
-                                    onItemClick = { onDetailClick(postWithAuthor.post.id) }
+                                    onItemClick = { onDetailClick(postWithAuthor.post.id) },
+                                    images = images
                                 )
                             }
                         }

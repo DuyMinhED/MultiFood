@@ -10,15 +10,18 @@ import java.util.Date
 data class User(
     val id: String = "",
     val name: String = "",
+    val username: String = "",
     val email: String? = null,
     val avatarUrl: String = "",
     val bio: String = "",
     val phoneNumber: String? = null,
+    val isVerified: Boolean = false,
 
     val postCount: Int = 0,
     val followerCount: Int = 0,
     val followingCount: Int = 0,
     val totalLikesReceived: Int = 0, // <-- Đã thêm
+
 
     val likedPostIds: List<String> = emptyList(),
     val bookmarkedPostIds: List<String> = emptyList(),

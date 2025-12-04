@@ -24,6 +24,8 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
     val loginState by viewModel.loginState.collectAsState()
     val resetPasswordState by viewModel.resetPasswordState.collectAsState()
     val context = LocalContext.current
@@ -66,22 +68,43 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        CustomTextField(value = email, onValueChange = { email = it }, label = "Email")
-
+        CustomTextField(value = email, onValueChange = { 
+            email = it
+            emailError = null
+        }, label = "Email")
+        if (emailError != null) {
+            Text(emailError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         Spacer(modifier = Modifier.height(8.dp))
-
         CustomTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { 
+                password = it
+                passwordError = null
+            },
             label = "Mật khẩu",
             visualTransformation = PasswordVisualTransformation()
         )
-
+        if (passwordError != null) {
+            Text(passwordError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         Spacer(modifier = Modifier.height(24.dp))
-
         CustomButton(
             text = "Đăng nhập",
-            onClick = { viewModel.login(email, password) },
+            onClick = { 
+                var valid = true
+                if (email.isBlank()) {
+                    emailError = "Vui lòng nhập email"
+                    valid = false
+                }
+                if (password.isBlank()) {
+                    passwordError = "Vui lòng nhập mật khẩu"
+                    valid = false
+                }
+                if (valid) {
+                    viewModel.login(email, password)
+                }
+            },
             isLoading = loginState is Resource.Loading
         )
 

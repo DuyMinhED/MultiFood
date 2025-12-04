@@ -10,33 +10,29 @@ import java.util.Date
 data class Post(
     val id: String = "",
     val userId: String = "",
+    val restaurantId: String = "", // Thêm theo thiết kế mới
     val title: String = "",
-    val rating: Float = 0.0f,
     val content: String = "",
-    val imageUrls: List<String> = emptyList(),
+    val rating: Float = 0.0f,
     val pricePerPerson: Int = 0,
-    val visitTimestamp: Long = 0L,
+    @ServerTimestamp
+    val visitDate: Date? = null, // Đổi sang Date theo thiết kế
 
-    // Dữ liệu được cache lại
-    val userName: String = "",
-    val userAvatarUrl: String = "",
-    val placeName: String = "",
-    val placeAddress: String = "",
-    val placeCoverImage: String = "",
-
+    // Các trường đếm sẽ được cập nhật bởi Cloud Functions
     val likeCount: Int = 0,
     val commentCount: Int = 0,
 
     val status: PostStatus = PostStatus.PUBLISHED,
 
     @ServerTimestamp
-    var createdAt: Date? = null, // Sửa thành var và Date?
+    var createdAt: Date? = null,
     @ServerTimestamp
-    var updatedAt: Date? = null  // Sửa thành var và Date?
+    var updatedAt: Date? = null
 )
 
 enum class PostStatus {
     DRAFT,
     PUBLISHED,
+    DELETED, // Thêm trạng thái DELETED
     ARCHIVED
 }

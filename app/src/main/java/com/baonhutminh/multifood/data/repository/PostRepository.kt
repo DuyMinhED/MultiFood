@@ -2,6 +2,7 @@ package com.baonhutminh.multifood.data.repository
 
 import android.net.Uri
 import com.baonhutminh.multifood.data.model.Post
+import com.baonhutminh.multifood.data.model.PostImage
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.util.Resource
 import kotlinx.coroutines.flow.Flow
@@ -20,11 +21,11 @@ interface PostRepository {
 
     suspend fun refreshAllPosts(): Resource<Unit>
 
-    suspend fun createPost(post: Post): Resource<String>
+    suspend fun createPost(post: Post, images: List<PostImage>): Resource<String>
 
-    suspend fun updatePost(post: Post): Resource<Unit> // <-- Đã thêm
+    suspend fun updatePost(post: Post): Resource<Unit>
 
     suspend fun uploadPostImage(imageUri: Uri): Resource<String>
 
-    suspend fun deletePost(postId: String, authorId: String): Resource<Unit>
+    suspend fun deletePost(postId: String): Resource<Unit>
 }
