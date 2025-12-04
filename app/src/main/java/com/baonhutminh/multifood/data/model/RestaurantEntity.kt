@@ -29,3 +29,4 @@ data class RestaurantEntity(
     val createdAt: Date? = null
 )
 
+

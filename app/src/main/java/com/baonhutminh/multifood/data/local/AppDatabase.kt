@@ -20,7 +20,7 @@ import com.baonhutminh.multifood.data.model.UserProfile
         RestaurantEntity::class,
         PostImageEntity::class
     ],
-    version = 11, // Tăng version để phản ánh các thay đổi schema mới
+    version = 12, // Tăng từ 11 lên 12 để phản ánh thay đổi schema và fix crash Room identity hash mismatch
     exportSchema = false
 )
 @TypeConverters(Converters::class)
