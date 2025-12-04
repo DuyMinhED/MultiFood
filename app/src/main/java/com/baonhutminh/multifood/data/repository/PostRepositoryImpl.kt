@@ -17,6 +17,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
@@ -29,7 +30,8 @@ class PostRepositoryImpl @Inject constructor(
     private val storage: FirebaseStorage,
     private val postDao: PostDao,
     private val commentDao: CommentDao,
-    private val postImageDao: PostImageDao
+    private val postImageDao: PostImageDao,
+    private val restaurantRepository: RestaurantRepository
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
@@ -54,6 +56,8 @@ class PostRepositoryImpl @Inject constructor(
     }
 
     override fun searchPosts(query: String, minRating: Float, minPrice: Int, maxPrice: Int): Flow<Resource<List<PostWithAuthor>>> {
+        // Tìm kiếm substring: nội dung trong thanh tìm kiếm chỉ cần có nằm trong dữ liệu là được
+        // COLLATE NOCASE trong PostDao hỗ trợ không phân biệt hoa/thường nhưng vẫn giữ dấu
         return postDao.searchPosts(query, minRating, minPrice, maxPrice).map { Resource.Success(it) }
     }
 
@@ -61,7 +65,34 @@ class PostRepositoryImpl @Inject constructor(
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
-            val postEntities = postDTOs.map { it.toEntity() }
+            
+            // Populate restaurant info cho mỗi post
+            val postEntities = postDTOs.map { postDTO ->
+                var restaurantName = ""
+                var restaurantAddress = ""
+                
+                if (postDTO.restaurantId.isNotBlank()) {
+                    // Lấy thông tin restaurant từ Room hoặc Firestore
+                    val restaurantResult = restaurantRepository.getRestaurantById(postDTO.restaurantId).first()
+                    when (restaurantResult) {
+                        is Resource.Success -> {
+                            restaurantResult.data?.let { restaurant ->
+                                restaurantName = restaurant.name
+                                restaurantAddress = restaurant.address
+                            }
+                        }
+                        else -> {
+                            // Giữ giá trị mặc định (rỗng)
+                        }
+                    }
+                }
+                
+                postDTO.toEntity(
+                    restaurantName = restaurantName,
+                    restaurantAddress = restaurantAddress
+                )
+            }
+            
             postDao.syncPosts(postEntities)
             
             // Sync images cho tất cả posts
@@ -74,6 +105,52 @@ class PostRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error refreshing posts", e)
+            Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
+        }
+    }
+
+    override suspend fun refreshPost(postId: String): Resource<Unit> {
+        return try {
+            val postDoc = postsCollection.document(postId).get().await()
+            if (!postDoc.exists()) {
+                return Resource.Error("Bài viết không tồn tại")
+            }
+            
+            val postDTO = postDoc.toObject(Post::class.java) ?: return Resource.Error("Lỗi đọc dữ liệu bài viết")
+            
+            // Populate restaurant info
+            var restaurantName = ""
+            var restaurantAddress = ""
+            
+            if (postDTO.restaurantId.isNotBlank()) {
+                val restaurantResult = restaurantRepository.getRestaurantById(postDTO.restaurantId).first()
+                when (restaurantResult) {
+                    is Resource.Success -> {
+                        restaurantResult.data?.let { restaurant ->
+                            restaurantName = restaurant.name
+                            restaurantAddress = restaurant.address
+                        }
+                    }
+                    else -> {
+                        // Giữ giá trị mặc định (rỗng)
+                    }
+                }
+            }
+            
+            val postEntity = postDTO.toEntity(
+                restaurantName = restaurantName,
+                restaurantAddress = restaurantAddress
+            )
+            
+            postDao.upsertAll(listOf(postEntity))
+            
+            // Sync images cho post này
+            syncPostImages(postId)
+            
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("PostRepositoryImpl", "Error refreshing post $postId", e)
             Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
         }
     }
@@ -178,7 +255,12 @@ class PostRepositoryImpl @Inject constructor(
 // Hàm này cần được cập nhật vì PostEntity đã thay đổi
 // Các trường cache (userName, userAvatarUrl, restaurantName, restaurantAddress) 
 // sẽ được populate khi sync từ Firestore với thông tin đầy đủ
-fun Post.toEntity(): PostEntity {
+fun Post.toEntity(
+    restaurantName: String = "",
+    restaurantAddress: String = "",
+    userName: String = "",
+    userAvatarUrl: String = ""
+): PostEntity {
     return PostEntity(
         id = this.id,
         userId = this.userId,
@@ -193,10 +275,9 @@ fun Post.toEntity(): PostEntity {
         status = this.status,
         createdAt = this.createdAt,
         updatedAt = this.updatedAt,
-        // Các trường cache sẽ được populate khi có thông tin đầy đủ từ User và Restaurant
-        userName = "",
-        userAvatarUrl = "",
-        restaurantName = "",
-        restaurantAddress = ""
+        userName = userName,
+        userAvatarUrl = userAvatarUrl,
+        restaurantName = restaurantName,
+        restaurantAddress = restaurantAddress
     )
 }

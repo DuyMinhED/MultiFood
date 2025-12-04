@@ -25,7 +25,7 @@ import com.baonhutminh.multifood.ui.theme.md_theme_light_primary
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
-// Define color schemes for other themes directly here for simplicity
+
 val LightGreenColorScheme = lightColorScheme(primary = Color(0xFF4CAF50))
 val DarkGreenColorScheme = darkColorScheme(primary = Color(0xFF81C784))
 val LightBlueColorScheme = lightColorScheme(primary = Color(0xFF2196F3))

@@ -34,10 +34,10 @@ interface PostDao {
     @Query("""
         SELECT * FROM posts 
         WHERE 
-            (title LIKE '%' || :query || '%' 
-             OR content LIKE '%' || :query || '%'
-             OR restaurantName LIKE '%' || :query || '%'
-             OR restaurantAddress LIKE '%' || :query || '%')
+            (title LIKE '%' || :query || '%' COLLATE NOCASE
+             OR content LIKE '%' || :query || '%' COLLATE NOCASE
+             OR restaurantName LIKE '%' || :query || '%' COLLATE NOCASE
+             OR restaurantAddress LIKE '%' || :query || '%' COLLATE NOCASE)
             AND rating >= :minRating
             AND pricePerPerson BETWEEN :minPrice AND :maxPrice
         ORDER BY createdAt DESC

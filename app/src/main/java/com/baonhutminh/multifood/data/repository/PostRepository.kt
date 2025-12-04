@@ -21,6 +21,8 @@ interface PostRepository {
 
     suspend fun refreshAllPosts(): Resource<Unit>
 
+    suspend fun refreshPost(postId: String): Resource<Unit>
+
     suspend fun createPost(post: Post, images: List<PostImage>): Resource<String>
 
     suspend fun updatePost(post: Post): Resource<Unit>

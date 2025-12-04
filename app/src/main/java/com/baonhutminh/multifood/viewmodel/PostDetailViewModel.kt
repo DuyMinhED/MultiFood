@@ -161,14 +161,21 @@ class PostDetailViewModel @Inject constructor(
             }
 
             viewModelState.update { it.copy(isDeleting = true, errorMessage = null) }
+            
+            // Navigate ngay lập tức để tránh màn hình trắng khi post bị xóa
+            _events.emit(PostDetailEvent.NavigateToHome)
 
+            // Xóa post trong background
             val result = postRepository.deletePost(postToDelete.id)
-
+            
+            // Refresh posts sau khi xóa (không cần đợi kết quả)
             if (result is Resource.Success) {
-                _events.emit(PostDetailEvent.NavigateToHome)
+                postRepository.refreshAllPosts()
             } else {
-                viewModelState.update { it.copy(errorMessage = result.message ?: "Lỗi xóa bài viết") }
+                // Nếu lỗi, vẫn refresh để đảm bảo UI đồng bộ
+                postRepository.refreshAllPosts()
             }
+            
             viewModelState.update { it.copy(isDeleting = false) }
         }
     }

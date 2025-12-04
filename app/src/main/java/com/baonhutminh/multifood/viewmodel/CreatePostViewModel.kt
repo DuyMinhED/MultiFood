@@ -14,6 +14,9 @@ import com.baonhutminh.multifood.data.repository.RestaurantRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -275,9 +278,11 @@ class CreatePostViewModel @Inject constructor(
                 )
             }
 
-            when (postRepository.createPost(post, postImages)) {
+            when (val result = postRepository.createPost(post, postImages)) {
                 is Resource.Success -> {
-                    postRepository.refreshAllPosts()
+                    val newPostId = result.data!!
+                    // Chỉ refresh post vừa tạo thay vì tất cả posts để tăng tốc độ
+                    postRepository.refreshPost(newPostId)
                     _events.emit(CreatePostEvent.NavigateBack)
                 }
                 is Resource.Error -> _uiState.value = CreatePostUiState.Error("Lỗi không xác định")
@@ -348,17 +353,30 @@ class CreatePostViewModel @Inject constructor(
 
     private suspend fun uploadImages(): List<String>? {
         val uploadedUrls = mutableListOf<String>()
-        for (uri in imageUris.value) {
-            when (val result = postRepository.uploadPostImage(uri)) {
-                is Resource.Success -> uploadedUrls.add(result.data!!)
-                is Resource.Error -> {
-                    _uiState.value = CreatePostUiState.Error("Lỗi tải ảnh lên: ${result.message}")
-                    return null
+        
+        // Upload tất cả ảnh song song thay vì tuần tự để tăng tốc độ
+        return coroutineScope {
+            val uploadJobs = imageUris.value.map { uri ->
+                async {
+                    postRepository.uploadPostImage(uri)
                 }
-                else -> {}
             }
+            
+            val results = uploadJobs.awaitAll()
+            
+            for (result in results) {
+                when (result) {
+                    is Resource.Success -> uploadedUrls.add(result.data!!)
+                    is Resource.Error -> {
+                        _uiState.value = CreatePostUiState.Error("Lỗi tải ảnh lên: ${result.message}")
+                        return@coroutineScope null
+                    }
+                    else -> {}
+                }
+            }
+            
+            uploadedUrls
         }
-        return uploadedUrls
     }
 
     fun deletePost() {
