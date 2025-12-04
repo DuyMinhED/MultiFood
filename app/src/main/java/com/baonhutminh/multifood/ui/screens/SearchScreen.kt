@@ -29,7 +29,7 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showFilters by remember { mutableStateOf(false) }
-    
+
     // Local state cho TextField để tránh conflict với debounced state từ ViewModel
     // Giúp TextField phản hồi ngay lập tức khi user gõ, không bị delay do debounce
     var searchText by remember { mutableStateOf("") }

@@ -23,6 +23,7 @@ class SettingsPreferences @Inject constructor(@ApplicationContext private val co
         private val THEME_KEY = stringPreferencesKey("app_theme")
         private val NOTIFICATIONS_ENABLED_KEY = booleanPreferencesKey("notifications_enabled")
         private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
+        private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
     }
 
     val appTheme: Flow<AppTheme> = context.dataStore.data.map { preferences ->
@@ -36,6 +37,10 @@ class SettingsPreferences @Inject constructor(@ApplicationContext private val co
 
     val darkModeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[DARK_MODE_KEY] ?: false
+    }
+
+    val onboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[ONBOARDING_COMPLETED_KEY] ?: false
     }
 
     suspend fun setAppTheme(theme: AppTheme) {
@@ -53,6 +58,12 @@ class SettingsPreferences @Inject constructor(@ApplicationContext private val co
     suspend fun setDarkModeEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[DARK_MODE_KEY] = enabled
+        }
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[ONBOARDING_COMPLETED_KEY] = completed
         }
     }
 }

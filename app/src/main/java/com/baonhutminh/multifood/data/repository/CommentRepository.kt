@@ -12,4 +12,8 @@ interface CommentRepository {
     suspend fun refreshCommentsForPost(postId: String): Resource<Unit>
 
     suspend fun createComment(comment: Comment, authorId: String): Resource<Unit>
+
+    suspend fun updateComment(comment: Comment): Resource<Unit>
+
+    suspend fun deleteComment(commentId: String, postId: String): Resource<Unit>
 }
