@@ -51,7 +51,8 @@ fun PostItemCard(
     onLikeClick: (String) -> Unit,
     onItemClick: (String) -> Unit,
     images: List<String> = emptyList(),
-    likeCount: Int, // Thêm tham số này
+    likeCount: Int,
+    onAuthorClick: ((String) -> Unit)? = null, // Callback khi click vào author
     modifier: Modifier = Modifier
 ) {
     val post = postWithAuthor.post
@@ -203,7 +204,13 @@ fun PostItemCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (onAuthorClick != null && author != null) {
+                                    Modifier.clickable { onAuthorClick(author.id) }
+                                } else Modifier
+                            ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         AsyncImage(
@@ -220,7 +227,7 @@ fun PostItemCard(
                                 text = author?.name ?: "Người dùng ẩn danh",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = if (onAuthorClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )

@@ -30,6 +30,7 @@ import com.baonhutminh.multifood.ui.screens.ProfileScreen
 import com.baonhutminh.multifood.ui.screens.SearchScreen
 import com.baonhutminh.multifood.ui.screens.SettingsScreen
 import com.baonhutminh.multifood.ui.screens.SignUpScreen
+import com.baonhutminh.multifood.ui.screens.UserProfileScreen
 import com.baonhutminh.multifood.viewmodel.OnboardingViewModel
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -112,6 +113,9 @@ fun AppNavigation(
                     },
                     onSearchClick = {
                         navController.navigate(Screen.Search.route)
+                    },
+                    onUserProfileClick = { userId ->
+                        navController.navigate(Screen.UserProfile.createRoute(userId))
                     }
                 )
             }
@@ -152,6 +156,9 @@ fun AppNavigation(
                 },
                 onNavigateToEdit = { postId ->
                     navController.navigate(Screen.CreatePost.createRoute(postId))
+                },
+                onUserProfileClick = { userId ->
+                    navController.navigate(Screen.UserProfile.createRoute(userId))
                 }
             )
         }
@@ -181,6 +188,18 @@ fun AppNavigation(
             SearchScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onDetailClick = { postId ->
+                    navController.navigate(Screen.Detail.createRoute(postId))
+                }
+            )
+        }
+        
+        composable(
+            route = Screen.UserProfile.route,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) {
+            UserProfileScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onPostClick = { postId ->
                     navController.navigate(Screen.Detail.createRoute(postId))
                 }
             )

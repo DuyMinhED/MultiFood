@@ -39,7 +39,8 @@ fun PostDetailScreen(
     viewModel: PostDetailViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
     onNavigateToHome: () -> Unit,
-    onNavigateToEdit: (String) -> Unit
+    onNavigateToEdit: (String) -> Unit,
+    onUserProfileClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val postWithAuthor = uiState.postWithAuthor
@@ -207,6 +208,7 @@ fun PostDetailScreen(
                                     isLiked = isLiked,
                                     onLikeClick = { viewModel.toggleCommentLike(commentWithAuthor.comment.id) },
                                     onReplyClick = { viewModel.startReply(commentWithAuthor) },
+                                    onAuthorClick = onUserProfileClick,
                                     modifier = Modifier.padding(horizontal = 16.dp)
                                 )
                             }
@@ -221,6 +223,7 @@ fun PostDetailScreen(
                                         isLiked = isReplyLiked,
                                         onLikeClick = { viewModel.toggleCommentLike(reply.comment.id) },
                                         onReplyClick = { viewModel.startReply(commentWithAuthor) }, // Reply vẫn trả lời comment gốc
+                                        onAuthorClick = onUserProfileClick,
                                         modifier = Modifier.padding(start = 48.dp, end = 16.dp) // Indent cho reply
                                     )
                                 }

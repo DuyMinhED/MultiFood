@@ -9,8 +9,14 @@ import kotlinx.coroutines.flow.Flow
 interface ProfileRepository {
 
     fun getUserProfile(): Flow<Resource<UserProfile?>>
+    
+    fun getUserProfileById(userId: String): Flow<Resource<UserProfile?>>
+    
+    suspend fun refreshUserProfileById(userId: String)
 
     fun getLikedPostsForCurrentUser(): Flow<List<PostLikeEntity>>
+
+    suspend fun syncLikesFromFirestore()
 
     suspend fun toggleLike(postId: String, isCurrentlyLiked: Boolean): Resource<Unit>
 
