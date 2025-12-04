@@ -16,8 +16,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 import java.util.concurrent.CancellationException
@@ -96,6 +99,9 @@ class PostRepositoryImpl @Inject constructor(
                 )
             }
             
+            // Xóa images cũ trước khi insert mới để tránh duplicate
+            postImageDao.deleteImagesForPost(postId)
+            
             if (postImages.isNotEmpty()) {
                 postImageDao.upsertAll(postImages)
             }
@@ -172,6 +178,77 @@ class PostRepositoryImpl @Inject constructor(
             Log.e("PostRepositoryImpl", "Error deleting post", e)
             Resource.Error(e.message ?: "Lỗi xóa bài viết")
         }
+    }
+    
+    override fun observePostsRealtime(): Flow<Unit> = callbackFlow {
+        var isFirstSync = true
+        
+        val listener = postsCollection
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("PostRepositoryImpl", "Realtime sync error", error)
+                    return@addSnapshotListener
+                }
+                
+                snapshot?.let { snap ->
+                    launch {
+                        try {
+                            val postDTOs = snap.toObjects(Post::class.java)
+                            val postEntities = postDTOs.map { it.toEntity() }
+                            postDao.syncPosts(postEntities)
+                            
+                            // Chỉ sync images lần đầu, không sync mỗi lần có update
+                            if (isFirstSync) {
+                                for (post in postDTOs) {
+                                    syncPostImages(post.id)
+                                }
+                                isFirstSync = false
+                            }
+                            
+                            trySend(Unit)
+                        } catch (e: Exception) {
+                            Log.e("PostRepositoryImpl", "Error processing realtime update", e)
+                        }
+                    }
+                }
+            }
+        
+        awaitClose { listener.remove() }
+    }
+    
+    override fun observePostRealtime(postId: String): Flow<Unit> = callbackFlow {
+        var isFirstSync = true
+        
+        val listener = postsCollection.document(postId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("PostRepositoryImpl", "Realtime sync error for post $postId", error)
+                    return@addSnapshotListener
+                }
+                
+                snapshot?.let { snap ->
+                    launch {
+                        try {
+                            val post = snap.toObject(Post::class.java)
+                            if (post != null) {
+                                postDao.upsert(post.toEntity())
+                                
+                                // Chỉ sync images lần đầu
+                                if (isFirstSync) {
+                                    syncPostImages(postId)
+                                    isFirstSync = false
+                                }
+                            }
+                            trySend(Unit)
+                        } catch (e: Exception) {
+                            Log.e("PostRepositoryImpl", "Error processing realtime update", e)
+                        }
+                    }
+                }
+            }
+        
+        awaitClose { listener.remove() }
     }
 }
 

@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.model.Comment
-import com.baonhutminh.multifood.data.model.PostImageEntity
-import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
@@ -36,7 +34,7 @@ data class PostDetailUiState(
     val errorMessage: String? = null,
     val commentInput: String = "",
     val isAddingComment: Boolean = false,
-    val images: List<String> = emptyList() // URLs của images
+    val images: List<String> = emptyList()
 )
 
 private data class PostDetailIntermediateState(
@@ -108,8 +106,15 @@ class PostDetailViewModel @Inject constructor(
     )
 
     init {
+        // Start realtime sync cho post này
         viewModelScope.launch {
-            postRepository.refreshAllPosts()
+            postRepository.observePostRealtime(postId)
+                .catch { /* ignore errors */ }
+                .collect()
+        }
+        
+        // Load comments
+        viewModelScope.launch {
             commentRepository.refreshCommentsForPost(postId)
         }
     }
@@ -175,7 +180,12 @@ class PostDetailViewModel @Inject constructor(
 
     fun toggleLike() {
         viewModelScope.launch {
-            profileRepository.toggleLike(postId, uiState.value.isLiked)
+            val currentLiked = uiState.value.isLiked
+            val result = profileRepository.toggleLike(postId, currentLiked)
+            if (result is Resource.Error) {
+                viewModelState.update { it.copy(errorMessage = result.message) }
+            }
+            // likedPosts Flow tự động cập nhật từ Room → UI tự update
         }
     }
 

@@ -1,12 +1,13 @@
 // ===== FIREBASE FUNCTIONS V2 – CHUẨN KHÔNG LỖI =====
-const { onDocumentCreated, onDocumentDeleted } = require("firebase-functions/v2/firestore");
+const {
+  onDocumentCreated,
+  onDocumentDeleted,
+} = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
 
 // Set vùng gần Việt Nam
 setGlobalOptions({ region: "asia-southeast1", maxInstances: 3 });
-
-
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -35,70 +36,112 @@ exports.onPostDeleted = onDocumentDeleted("posts/{postId}", async (event) => {
   });
 
   // Xóa likes
-  const likesSnap = await db.collection("posts").doc(postId).collection("likes").get();
+  const likesSnap = await db
+    .collection("posts")
+    .doc(postId)
+    .collection("likes")
+    .get();
   likesSnap.forEach((doc) => batch.delete(doc.ref));
 
   // Xóa comments
-  const commentsSnap = await db.collection("posts").doc(postId).collection("comments").get();
+  const commentsSnap = await db
+    .collection("posts")
+    .doc(postId)
+    .collection("comments")
+    .get();
   commentsSnap.forEach((doc) => batch.delete(doc.ref));
 
   // Xóa images
-  const imagesSnap = await db.collection("posts").doc(postId).collection("images").get();
+  const imagesSnap = await db
+    .collection("posts")
+    .doc(postId)
+    .collection("images")
+    .get();
   imagesSnap.forEach((doc) => batch.delete(doc.ref));
 
   return batch.commit();
 });
 
 // ========== 3. Khi tạo LIKE ==========
-exports.onLikeCreated = onDocumentCreated("posts/{postId}/likes/{userId}", async (event) => {
-  const postRef = db.collection("posts").doc(event.params.postId);
-  const postSnap = await postRef.get();
-  const post = postSnap.data();
+exports.onLikeCreated = onDocumentCreated(
+  "posts/{postId}/likes/{userId}",
+  async (event) => {
+    const postRef = db.collection("posts").doc(event.params.postId);
+    const postSnap = await postRef.get();
+    const post = postSnap.data();
 
-  const batch = db.batch();
+    const batch = db.batch();
 
-  // Tăng likeCount
-  batch.update(postRef, {
-    likeCount: admin.firestore.FieldValue.increment(1),
-  });
+    // Tăng likeCount
+    batch.update(postRef, {
+      likeCount: admin.firestore.FieldValue.increment(1),
+    });
 
-  // Tăng tổng like nhận được của tác giả
-  batch.update(db.collection("users").doc(post.userId), {
-    totalLikesReceived: admin.firestore.FieldValue.increment(1),
-  });
+    // Tăng tổng like nhận được của tác giả
+    batch.update(db.collection("users").doc(post.userId), {
+      totalLikesReceived: admin.firestore.FieldValue.increment(1),
+    });
 
-  return batch.commit();
-});
+    return batch.commit();
+  }
+);
 
 // ========== 4. Khi un-like ==========
-exports.onLikeDeleted = onDocumentDeleted("posts/{postId}/likes/{userId}", async (event) => {
-  const postRef = db.collection("posts").doc(event.params.postId);
-  const postSnap = await postRef.get();
-  const post = postSnap.data();
+exports.onLikeDeleted = onDocumentDeleted(
+  "posts/{postId}/likes/{userId}",
+  async (event) => {
+    const postRef = db.collection("posts").doc(event.params.postId);
+    const postSnap = await postRef.get();
 
-  const batch = db.batch();
+    if (!postSnap.exists) return;
 
-  batch.update(postRef, {
-    likeCount: admin.firestore.FieldValue.increment(-1),
-  });
+    const post = postSnap.data();
+    const currentLikeCount = post.likeCount || 0;
 
-  batch.update(db.collection("users").doc(post.userId), {
-    totalLikesReceived: admin.firestore.FieldValue.increment(-1),
-  });
+    const batch = db.batch();
 
-  return batch.commit();
-});
+    // Chỉ giảm nếu likeCount > 0
+    if (currentLikeCount > 0) {
+      batch.update(postRef, {
+        likeCount: admin.firestore.FieldValue.increment(-1),
+      });
+    }
+
+    const currentTotalLikes =
+      (await db.collection("users").doc(post.userId).get()).data()
+        ?.totalLikesReceived || 0;
+    if (currentTotalLikes > 0) {
+      batch.update(db.collection("users").doc(post.userId), {
+        totalLikesReceived: admin.firestore.FieldValue.increment(-1),
+      });
+    }
+
+    return batch.commit();
+  }
+);
 
 // ========== 5. Khi tạo comment ==========
-exports.onCommentCreated = onDocumentCreated("posts/{postId}/comments/{commentId}", (event) => {
-  return db.collection("posts").doc(event.params.postId).update({
-    commentCount: admin.firestore.FieldValue.increment(1),
-  });
-});
+exports.onCommentCreated = onDocumentCreated(
+  "posts/{postId}/comments/{commentId}",
+  (event) => {
+    return db
+      .collection("posts")
+      .doc(event.params.postId)
+      .update({
+        commentCount: admin.firestore.FieldValue.increment(1),
+      });
+  }
+);
 
 // ========== 6. Khi xóa comment ==========
-exports.onCommentDeleted = onDocumentDeleted("posts/{postId}/comments/{commentId}", (event) => {
-  return db.collection("posts").doc(event.params.postId).update({
-    commentCount: admin.firestore.FieldValue.increment(-1),
-  });
-});
+exports.onCommentDeleted = onDocumentDeleted(
+  "posts/{postId}/comments/{commentId}",
+  (event) => {
+    return db
+      .collection("posts")
+      .doc(event.params.postId)
+      .update({
+        commentCount: admin.firestore.FieldValue.increment(-1),
+      });
+  }
+);

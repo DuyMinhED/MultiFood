@@ -2,6 +2,7 @@ package com.baonhutminh.multifood.data.repository
 
 import android.net.Uri
 import android.util.Log
+import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.local.PostLikeDao
 import com.baonhutminh.multifood.data.local.UserDao
 import com.baonhutminh.multifood.data.model.Like
@@ -32,7 +33,8 @@ class ProfileRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val storage: FirebaseStorage,
     private val userDao: UserDao,
-    private val postLikeDao: PostLikeDao
+    private val postLikeDao: PostLikeDao,
+    private val postDao: PostDao
 ) : ProfileRepository {
 
     private val usersCollection = firestore.collection("users")
@@ -73,6 +75,16 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override suspend fun toggleLike(postId: String, isCurrentlyLiked: Boolean): Resource<Unit> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
+        val delta = if (isCurrentlyLiked) -1 else 1
+        
+        // Optimistic update Room TRƯỚC → UI cập nhật ngay (cả icon và số lượt)
+        if (isCurrentlyLiked) {
+            postLikeDao.delete(postId, currentUser.uid)
+        } else {
+            postLikeDao.insert(PostLikeEntity(postId = postId, userId = currentUser.uid))
+        }
+        postDao.updateLikeCount(postId, delta) // Update số lượt ngay
+        
         return try {
             val likeDocId = "${currentUser.uid}_$postId"
             val rootLikeRef = likesCollection.document(likeDocId)
@@ -80,11 +92,9 @@ class ProfileRepositoryImpl @Inject constructor(
 
             firestore.runBatch { batch ->
                 if (isCurrentlyLiked) {
-                    // Unlike: Delete from both locations
                     batch.delete(rootLikeRef)
                     batch.delete(postLikeRef)
                 } else {
-                    // Like: Add to both locations
                     val likeData = hashMapOf(
                         "userId" to currentUser.uid,
                         "postId" to postId,
@@ -94,17 +104,22 @@ class ProfileRepositoryImpl @Inject constructor(
                     batch.set(postLikeRef, Like())
                 }
             }.await()
-
-            if (isCurrentlyLiked) {
-                postLikeDao.delete(postId, currentUser.uid)
-            } else {
-                postLikeDao.insert(PostLikeEntity(postId = postId, userId = currentUser.uid))
-            }
+            
+            // Firestore realtime sync sẽ confirm giá trị đúng từ Cloud Function
 
             Resource.Success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e("ProfileRepositoryImpl", "Error toggling like", e)
+            
+            // Rollback Room nếu Firestore fail
+            if (isCurrentlyLiked) {
+                postLikeDao.insert(PostLikeEntity(postId = postId, userId = currentUser.uid))
+            } else {
+                postLikeDao.delete(postId, currentUser.uid)
+            }
+            postDao.updateLikeCount(postId, -delta) // Rollback số lượt
+            
             Resource.Error(e.message ?: "Lỗi khi thích bài viết")
         }
     }
