@@ -68,8 +68,8 @@ service cloud.firestore {
       match /likes/{userId} {
         // Ai cũng có thể đọc likes
         allow read: if true;
-        // Chỉ người dùng đó mới được tạo/xóa like của mình
-        allow create, delete: if request.auth.uid == userId;
+        // Chỉ người dùng đó mới được tạo/sửa/xóa like của mình
+        allow create, update, delete: if request.auth != null && request.auth.uid == userId;
       }
 
       // Comments sub-collection
@@ -90,12 +90,9 @@ service cloud.firestore {
       // Người dùng chỉ đọc được những like của chính mình
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
 
-      // Chỉ chủ sở hữu mới tạo hoặc xóa được bản ghi like của mình
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Chỉ chủ sở hữu mới tạo/sửa/xóa được bản ghi like của mình
+      allow create, update: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
-
-      // Không cho phép update để tránh sửa dữ liệu tùy ý
-      allow update: if false;
     }
   }
 }

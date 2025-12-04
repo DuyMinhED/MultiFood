@@ -13,5 +13,5 @@ data class PostWithAuthor(
         parentColumn = "userId",
         entityColumn = "id"
     )
-    val author: UserProfile? // <-- Đã sửa thành nullable
+    val author: UserProfile? // 
 )

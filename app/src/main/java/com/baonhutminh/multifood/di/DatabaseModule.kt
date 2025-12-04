@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.baonhutminh.multifood.data.local.AppDatabase
 import com.baonhutminh.multifood.data.local.CommentDao
+import com.baonhutminh.multifood.data.local.CommentLikeDao
 import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.local.PostLikeDao
@@ -47,6 +48,11 @@ object DatabaseModule {
     @Provides
     fun provideCommentDao(appDatabase: AppDatabase): CommentDao {
         return appDatabase.commentDao()
+    }
+
+    @Provides
+    fun provideCommentLikeDao(appDatabase: AppDatabase): CommentLikeDao {
+        return appDatabase.commentLikeDao()
     }
 
     @Provides

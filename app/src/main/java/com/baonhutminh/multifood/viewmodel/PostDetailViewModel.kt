@@ -1,10 +1,12 @@
 package com.baonhutminh.multifood.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.model.Comment
+import com.baonhutminh.multifood.data.model.CommentLikeEntity
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
@@ -14,10 +16,15 @@ import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Date
 import javax.inject.Inject
+
+private const val TAG = "PostDetailViewModel"
+private const val LIKE_DEBOUNCE_MS = 500L
 
 sealed class PostDetailEvent {
     object NavigateBack : PostDetailEvent()
@@ -27,6 +34,7 @@ sealed class PostDetailEvent {
 data class PostDetailUiState(
     val postWithAuthor: PostWithAuthor? = null,
     val comments: List<CommentWithAuthor> = emptyList(),
+    val likedComments: List<CommentLikeEntity> = emptyList(),
     val currentUser: UserProfile? = null,
     val isLiked: Boolean = false,
     val isLoading: Boolean = true,
@@ -34,12 +42,15 @@ data class PostDetailUiState(
     val errorMessage: String? = null,
     val commentInput: String = "",
     val isAddingComment: Boolean = false,
-    val images: List<String> = emptyList()
+    val images: List<String> = emptyList(),
+    val replyingToComment: CommentWithAuthor? = null,
+    val replyInput: String = ""
 )
 
 private data class PostDetailIntermediateState(
     val postWithAuthor: PostWithAuthor? = null,
     val comments: List<CommentWithAuthor> = emptyList(),
+    val likedComments: List<CommentLikeEntity> = emptyList(),
     val currentUser: UserProfile? = null,
     val isLiked: Boolean = false,
     val isLoading: Boolean = true,
@@ -50,7 +61,9 @@ private data class ViewModelState(
     val commentInput: String = "",
     val isAddingComment: Boolean = false,
     val isDeleting: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val replyingToComment: CommentWithAuthor? = null,
+    val replyInput: String = ""
 )
 
 @HiltViewModel
@@ -66,8 +79,11 @@ class PostDetailViewModel @Inject constructor(
     private val viewModelState = MutableStateFlow(ViewModelState())
     private val _events = MutableSharedFlow<PostDetailEvent>()
     val events = _events.asSharedFlow()
+    
+    private var likeDebounceJob: Job? = null
 
     private val likedPostsFlow = profileRepository.getLikedPostsForCurrentUser()
+    private val likedCommentsFlow = commentRepository.getLikedCommentsForCurrentUser()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<PostDetailUiState> = combine(
@@ -81,15 +97,19 @@ class PostDetailViewModel @Inject constructor(
         PostDetailIntermediateState(
             postWithAuthor = (postRes as? Resource.Success)?.data,
             comments = (commentsRes as? Resource.Success)?.data ?: emptyList(),
+            likedComments = emptyList(), // Will be filled in next combine
             currentUser = (userRes as? Resource.Success)?.data,
             isLiked = isLiked,
             isLoading = (postRes as? Resource.Success)?.data == null,
             images = images.map { it.url }
         )
+    }.combine(likedCommentsFlow) { state, likedComments ->
+        state.copy(likedComments = likedComments)
     }.combine(viewModelState) { intermediateState, vmState ->
         PostDetailUiState(
             postWithAuthor = intermediateState.postWithAuthor,
             comments = intermediateState.comments,
+            likedComments = intermediateState.likedComments,
             currentUser = intermediateState.currentUser,
             isLiked = intermediateState.isLiked,
             isLoading = intermediateState.isLoading,
@@ -97,7 +117,9 @@ class PostDetailViewModel @Inject constructor(
             isDeleting = vmState.isDeleting,
             commentInput = vmState.commentInput,
             isAddingComment = vmState.isAddingComment,
-            errorMessage = vmState.errorMessage
+            errorMessage = vmState.errorMessage,
+            replyingToComment = vmState.replyingToComment,
+            replyInput = vmState.replyInput
         )
     }.stateIn(
         scope = viewModelScope,
@@ -106,10 +128,10 @@ class PostDetailViewModel @Inject constructor(
     )
 
     init {
-        // Start realtime sync cho post này
+        // Realtime sync cho post này
         viewModelScope.launch {
             postRepository.observePostRealtime(postId)
-                .catch { /* ignore errors */ }
+                .catch { e -> Log.e(TAG, "Realtime sync error", e) }
                 .collect()
         }
         
@@ -179,17 +201,71 @@ class PostDetailViewModel @Inject constructor(
     }
 
     fun toggleLike() {
-        viewModelScope.launch {
+        // Cancel job cũ nếu đang pending
+        likeDebounceJob?.cancel()
+        
+        likeDebounceJob = viewModelScope.launch {
+            // Debounce - đợi user ngừng spam
+            delay(LIKE_DEBOUNCE_MS)
+            
             val currentLiked = uiState.value.isLiked
             val result = profileRepository.toggleLike(postId, currentLiked)
             if (result is Resource.Error) {
                 viewModelState.update { it.copy(errorMessage = result.message) }
             }
-            // likedPosts Flow tự động cập nhật từ Room → UI tự update
         }
     }
 
     fun clearErrorMessage() {
         viewModelState.update { it.copy(errorMessage = null) }
+    }
+
+    // Comment Like
+    fun toggleCommentLike(commentId: String) {
+        viewModelScope.launch {
+            val isLiked = uiState.value.likedComments.any { it.commentId == commentId }
+            val result = commentRepository.toggleCommentLike(commentId, isLiked)
+            if (result is Resource.Error) {
+                viewModelState.update { it.copy(errorMessage = result.message) }
+            }
+        }
+    }
+
+    // Reply functions
+    fun startReply(comment: CommentWithAuthor) {
+        viewModelState.update { it.copy(replyingToComment = comment, replyInput = "") }
+    }
+
+    fun cancelReply() {
+        viewModelState.update { it.copy(replyingToComment = null, replyInput = "") }
+    }
+
+    fun onReplyInputChange(text: String) {
+        viewModelState.update { it.copy(replyInput = text) }
+    }
+
+    fun submitReply() {
+        val replyingTo = viewModelState.value.replyingToComment ?: return
+        val replyText = viewModelState.value.replyInput
+        if (replyText.isBlank()) return
+
+        viewModelScope.launch {
+            viewModelState.update { it.copy(isAddingComment = true) }
+            val user = profileRepository.getUserProfile().first().data
+            if (user == null) {
+                viewModelState.update { it.copy(isAddingComment = false, errorMessage = "Vui lòng đăng nhập") }
+                return@launch
+            }
+
+            val result = commentRepository.replyToComment(replyingTo.comment, replyText, user.id)
+
+            if (result is Resource.Success) {
+                viewModelState.update { it.copy(replyingToComment = null, replyInput = "") }
+                commentRepository.refreshCommentsForPost(postId)
+            } else if (result is Resource.Error) {
+                viewModelState.update { it.copy(errorMessage = result.message) }
+            }
+            viewModelState.update { it.copy(isAddingComment = false) }
+        }
     }
 }

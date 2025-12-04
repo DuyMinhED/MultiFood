@@ -81,6 +81,22 @@ class PostRepositoryImpl @Inject constructor(
         }
     }
     
+    override suspend fun refreshPost(postId: String): Resource<Unit> {
+        return try {
+            val doc = postsCollection.document(postId).get().await()
+            val post = doc.toObject(Post::class.java)
+            if (post != null) {
+                postDao.upsert(post.toEntity())
+                syncPostImages(postId)
+            }
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("PostRepositoryImpl", "Error refreshing post $postId", e)
+            Resource.Error(e.message ?: "Lỗi làm mới bài đăng")
+        }
+    }
+    
     private suspend fun syncPostImages(postId: String) {
         try {
             val imagesSnapshot = postsCollection.document(postId)
@@ -196,14 +212,17 @@ class PostRepositoryImpl @Inject constructor(
                         try {
                             val postDTOs = snap.toObjects(Post::class.java)
                             val postEntities = postDTOs.map { it.toEntity() }
-                            postDao.syncPosts(postEntities)
                             
-                            // Chỉ sync images lần đầu, không sync mỗi lần có update
+                            // Dùng upsertAll thay vì syncPosts để không xóa dữ liệu local
+                            // Giữ lại optimistic update
                             if (isFirstSync) {
+                                postDao.syncPosts(postEntities) // Lần đầu sync đầy đủ
                                 for (post in postDTOs) {
                                     syncPostImages(post.id)
                                 }
                                 isFirstSync = false
+                            } else {
+                                postDao.upsertAll(postEntities) // Các lần sau chỉ update
                             }
                             
                             trySend(Unit)

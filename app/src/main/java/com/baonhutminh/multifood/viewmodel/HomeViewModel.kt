@@ -1,5 +1,6 @@
 package com.baonhutminh.multifood.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.local.PostImageDao
@@ -11,11 +12,14 @@ import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val TAG = "HomeViewModel"
+private const val LIKE_DEBOUNCE_MS = 500L // Debounce 500ms để tránh spam
 
 enum class PostFilterTab(val title: String) {
     ALL("Tất cả"),
@@ -51,6 +55,9 @@ class HomeViewModel @Inject constructor(
     private val _selectedTab = MutableStateFlow(PostFilterTab.ALL)
     private val _isLoading = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
+    
+    // Debounce jobs cho từng post để tránh spam
+    private val likeDebounceJobs = mutableMapOf<String, Job>()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val postsFlow = _selectedTab.flatMapLatest { tab ->
@@ -126,19 +133,18 @@ class HomeViewModel @Inject constructor(
     )
 
     init {
-        // Start realtime sync - tự động cập nhật khi Firestore thay đổi
+        // Realtime sync posts
         viewModelScope.launch {
             postRepository.observePostsRealtime()
-                .catch { e -> 
-                    _errorMessage.value = "Lỗi đồng bộ realtime: ${e.message}"
-                }
+                .catch { e -> Log.e(TAG, "Realtime sync error", e) }
                 .collect()
         }
         
-        // Initial load
+        // Sync likes và user profile lần đầu
         viewModelScope.launch {
             _isLoading.value = true
             profileRepository.refreshUserProfile()
+            profileRepository.syncLikesFromFirestore()
             _isLoading.value = false
         }
     }
@@ -162,13 +168,20 @@ class HomeViewModel @Inject constructor(
     }
 
     fun toggleLike(postId: String) {
-        viewModelScope.launch {
+        // Cancel job cũ nếu đang pending
+        likeDebounceJobs[postId]?.cancel()
+        
+        likeDebounceJobs[postId] = viewModelScope.launch {
+            // Debounce - đợi user ngừng spam
+            delay(LIKE_DEBOUNCE_MS)
+            
             val isLiked = uiState.value.likedPosts.any { it.postId == postId }
             val result = profileRepository.toggleLike(postId, isLiked)
             if (result is Resource.Error) {
                 _errorMessage.value = result.message ?: "Không thể cập nhật trạng thái yêu thích"
             }
-            // likedPosts Flow tự động cập nhật từ Room → UI tự update
+            
+            likeDebounceJobs.remove(postId)
         }
     }
 
