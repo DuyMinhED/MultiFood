@@ -140,11 +140,11 @@ class HomeViewModel @Inject constructor(
                 .collect()
         }
         
-        // Sync likes và user profile lần đầu
+        // Sync user profile lần đầu
         viewModelScope.launch {
             _isLoading.value = true
             profileRepository.refreshUserProfile()
-            profileRepository.syncLikesFromFirestore()
+            // Likes sẽ được sync tự động qua getLikedPostsForCurrentUser() flow
             _isLoading.value = false
         }
     }
