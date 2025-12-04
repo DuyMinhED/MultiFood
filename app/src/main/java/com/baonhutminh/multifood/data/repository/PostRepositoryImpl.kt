@@ -19,6 +19,7 @@ import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -32,7 +33,8 @@ class PostRepositoryImpl @Inject constructor(
     private val storage: FirebaseStorage,
     private val postDao: PostDao,
     private val commentDao: CommentDao,
-    private val postImageDao: PostImageDao
+    private val postImageDao: PostImageDao,
+    private val restaurantRepository: RestaurantRepository
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
@@ -86,7 +88,29 @@ class PostRepositoryImpl @Inject constructor(
             val doc = postsCollection.document(postId).get().await()
             val post = doc.toObject(Post::class.java)
             if (post != null) {
-                postDao.upsert(post.toEntity())
+                // Fetch restaurant info để populate restaurantName và restaurantAddress
+                var restaurantName = ""
+                var restaurantAddress = ""
+                
+                if (post.restaurantId.isNotBlank()) {
+                    val restaurantResult = restaurantRepository.getRestaurantById(post.restaurantId).first()
+                    when (restaurantResult) {
+                        is Resource.Success -> {
+                            restaurantResult.data?.let { restaurant ->
+                                restaurantName = restaurant.name
+                                restaurantAddress = restaurant.address
+                            }
+                        }
+                        else -> {
+                            // Giữ giá trị mặc định (rỗng) nếu không tìm thấy restaurant
+                        }
+                    }
+                }
+                
+                postDao.upsert(post.toEntity(
+                    restaurantName = restaurantName,
+                    restaurantAddress = restaurantAddress
+                ))
                 syncPostImages(postId)
             }
             Resource.Success(Unit)
@@ -274,7 +298,12 @@ class PostRepositoryImpl @Inject constructor(
 // Hàm này cần được cập nhật vì PostEntity đã thay đổi
 // Các trường cache (userName, userAvatarUrl, restaurantName, restaurantAddress) 
 // sẽ được populate khi sync từ Firestore với thông tin đầy đủ
-fun Post.toEntity(): PostEntity {
+fun Post.toEntity(
+    restaurantName: String = "",
+    restaurantAddress: String = "",
+    userName: String = "",
+    userAvatarUrl: String = ""
+): PostEntity {
     return PostEntity(
         id = this.id,
         userId = this.userId,
@@ -290,9 +319,9 @@ fun Post.toEntity(): PostEntity {
         createdAt = this.createdAt,
         updatedAt = this.updatedAt,
         // Các trường cache sẽ được populate khi có thông tin đầy đủ từ User và Restaurant
-        userName = "",
-        userAvatarUrl = "",
-        restaurantName = "",
-        restaurantAddress = ""
+        userName = userName,
+        userAvatarUrl = userAvatarUrl,
+        restaurantName = restaurantName,
+        restaurantAddress = restaurantAddress
     )
 }

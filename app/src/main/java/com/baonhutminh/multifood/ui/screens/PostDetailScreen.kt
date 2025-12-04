@@ -1,7 +1,11 @@
 package com.baonhutminh.multifood.ui.screens
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,26 +16,31 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.ImageNotSupported
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.baonhutminh.multifood.ui.components.AuthorHeader
 import com.baonhutminh.multifood.ui.components.CommentItem
+import com.baonhutminh.multifood.ui.components.FullscreenImageGallery
 import com.baonhutminh.multifood.viewmodel.PostDetailEvent
 import com.baonhutminh.multifood.viewmodel.PostDetailViewModel
 import com.baonhutminh.multifood.viewmodel.PostDetailUiState
+import kotlinx.coroutines.delay
+import java.text.NumberFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -45,6 +54,13 @@ fun PostDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val postWithAuthor = uiState.postWithAuthor
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    // State cho fullscreen image gallery
+    var showFullscreenGallery by remember { mutableStateOf(false) }
+    var selectedImageIndex by remember { mutableStateOf(0) }
+    
+    // State cho like animation
+    var isLikedAnimating by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
@@ -99,10 +115,30 @@ fun PostDetailScreen(
             } else if (postWithAuthor != null) {
                 val post = postWithAuthor.post
                 LazyColumn(contentPadding = paddingValues) {
-                    if (uiState.images.isNotEmpty()) {
-                        item {
+                    // Author Header
+                    item {
+                        postWithAuthor.author?.let { author ->
+                            AuthorHeader(
+                                author = author,
+                                createdAt = post.createdAt,
+                                onAuthorClick = { onUserProfileClick(author.id) }
+                            )
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+
+                    // Images section
+                    item {
+                        if (uiState.images.isNotEmpty()) {
                             val pagerState = rememberPagerState { uiState.images.size }
-                            Box(modifier = Modifier.height(300.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .height(PostDetailConstants.IMAGE_HEIGHT_DP.dp)
+                                    .clickable {
+                                        selectedImageIndex = pagerState.currentPage
+                                        showFullscreenGallery = true
+                                    }
+                            ) {
                                 HorizontalPager(state = pagerState) { page ->
                                     AsyncImage(
                                         model = uiState.images[page],
@@ -115,58 +151,232 @@ fun PostDetailScreen(
                                     Row(
                                         Modifier
                                             .align(Alignment.BottomCenter)
-                                            .padding(bottom = 8.dp)
+                                            .padding(bottom = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         repeat(pagerState.pageCount) { iteration ->
-                                            val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else Color.LightGray
+                                            val color = if (pagerState.currentPage == iteration) 
+                                                MaterialTheme.colorScheme.primary 
+                                            else 
+                                                Color.LightGray.copy(alpha = 0.5f)
                                             Box(
                                                 modifier = Modifier
-                                                    .padding(2.dp)
+                                                    .size(PostDetailConstants.IMAGE_INDICATOR_SIZE_DP.dp)
                                                     .clip(CircleShape)
                                                     .background(color)
-                                                    .size(8.dp)
                                             )
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            // Empty state khi không có ảnh
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(PostDetailConstants.IMAGE_HEIGHT_DP.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.ImageNotSupported,
+                                        contentDescription = "Không có hình ảnh",
+                                        modifier = Modifier.size(64.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "Không có hình ảnh",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
                         }
                     }
 
+                    // Restaurant Info Card
                     item {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(post.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.LocationOn, contentDescription = "Địa chỉ", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(post.restaurantAddress.ifEmpty { "Địa chỉ" }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Star, contentDescription = "Đánh giá", modifier = Modifier.size(16.dp), tint = Color(0xFFFFC107))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("%.1f / 5.0".format(post.rating), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(post.content, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                            
-                            // Like section
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { viewModel.toggleLike() }) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = if (uiState.isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                        contentDescription = if (uiState.isLiked) "Bỏ thích" else "Thích",
-                                        tint = if (uiState.isLiked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                                        imageVector = Icons.Default.Store,
+                                        contentDescription = "Thông tin nhà hàng",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Thông tin nhà hàng",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "${post.likeCount} lượt thích",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = post.restaurantName.ifEmpty { "Không có tên nhà hàng" },
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.LocationOn,
+                                        contentDescription = "Địa chỉ",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        post.restaurantAddress.ifEmpty { "Không có địa chỉ" },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Post Content Card
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.EditNote,
+                                        contentDescription = "Đánh giá của bạn",
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Đánh giá của bạn",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = post.title,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Star,
+                                        contentDescription = "Đánh giá",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = Color(0xFFFFC107)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "%.1f / 5.0".format(post.rating),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (post.pricePerPerson > 0) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.tertiaryContainer
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.AccountBalanceWallet,
+                                                contentDescription = "Price",
+                                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = formatPrice(post.pricePerPerson) + " / người",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = post.content,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    // Like button with animation
+                                    val interactionSource = remember { MutableInteractionSource() }
+                                    val isPressed by interactionSource.collectIsPressedAsState()
+
+                                    LaunchedEffect(isPressed) {
+                                        if (isPressed) {
+                                            isLikedAnimating = true
+                                            delay(200) // Short delay for visual feedback
+                                            isLikedAnimating = false
+                                        }
+                                    }
+
+                                    // Animation cho like icon
+                                    val scale by animateFloatAsState(
+                                        targetValue = if (isLikedAnimating) 1.3f else 1f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessLow
+                                        ),
+                                        label = "likeScale"
+                                    )
+
+                                    IconButton(
+                                        onClick = { viewModel.toggleLike() },
+                                        modifier = Modifier.size(48.dp),
+                                        interactionSource = interactionSource
+                                    ) {
+                                        Icon(
+                                            imageVector = if (uiState.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                            contentDescription = if (uiState.isLiked) "Bỏ thích" else "Thích",
+                                            tint = if (uiState.isLiked || isLikedAnimating) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .graphicsLayer {
+                                                    scaleX = scale
+                                                    scaleY = scale
+                                                }
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "${post.likeCount} lượt thích",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -232,12 +442,25 @@ fun PostDetailScreen(
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(80.dp))
+                        Spacer(modifier = Modifier.height(PostDetailConstants.BOTTOM_SPACER_DP.dp))
                     }
                 }
             }
         }
+        
+        // Fullscreen Image Gallery
+        if (showFullscreenGallery && uiState.images.isNotEmpty()) {
+            FullscreenImageGallery(
+                images = uiState.images,
+                initialIndex = selectedImageIndex,
+                onDismiss = { showFullscreenGallery = false }
+            )
+        }
     }
+}
+
+private fun formatPrice(price: Int): String {
+    return NumberFormat.getNumberInstance(Locale("vi", "VN")).format(price) + "đ"
 }
 
 @Composable

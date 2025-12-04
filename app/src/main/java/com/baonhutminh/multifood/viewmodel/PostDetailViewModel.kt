@@ -128,6 +128,11 @@ class PostDetailViewModel @Inject constructor(
     )
 
     init {
+        // Refresh post để đảm bảo có đầy đủ thông tin (bao gồm restaurantName và restaurantAddress)
+        viewModelScope.launch {
+            postRepository.refreshPost(postId)
+        }
+        
         // Realtime sync cho post này
         viewModelScope.launch {
             postRepository.observePostRealtime(postId)
