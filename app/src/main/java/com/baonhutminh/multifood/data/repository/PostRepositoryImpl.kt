@@ -5,6 +5,9 @@ import android.util.Log
 import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.local.PostImageDao
+import com.baonhutminh.multifood.data.local.UserDao
+import com.baonhutminh.multifood.data.model.User
+import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.PostImage
@@ -31,6 +34,7 @@ class PostRepositoryImpl @Inject constructor(
     private val postDao: PostDao,
     private val commentDao: CommentDao,
     private val postImageDao: PostImageDao,
+    private val userDao: UserDao,
     private val restaurantRepository: RestaurantRepository
 ) : PostRepository {
 
@@ -65,6 +69,10 @@ class PostRepositoryImpl @Inject constructor(
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
+            
+            // Collect unique user IDs để sync UserProfiles
+            val userIds = postDTOs.map { it.userId }.filter { it.isNotBlank() }.toSet()
+            syncUserProfiles(userIds)
             
             // Populate restaurant info cho mỗi post
             val postEntities = postDTOs.map { postDTO ->
@@ -117,6 +125,11 @@ class PostRepositoryImpl @Inject constructor(
             }
             
             val postDTO = postDoc.toObject(Post::class.java) ?: return Resource.Error("Lỗi đọc dữ liệu bài viết")
+            
+            // Sync UserProfile của author
+            if (postDTO.userId.isNotBlank()) {
+                syncUserProfiles(setOf(postDTO.userId))
+            }
             
             // Populate restaurant info
             var restaurantName = ""
@@ -248,6 +261,63 @@ class PostRepositoryImpl @Inject constructor(
             if (e is CancellationException) throw e
             Log.e("PostRepositoryImpl", "Error deleting post", e)
             Resource.Error(e.message ?: "Lỗi xóa bài viết")
+        }
+    }
+
+    /**
+     * Sync UserProfiles từ Firestore vào Room database
+     * Fetch users in batches để tránh vượt quá giới hạn Firestore
+     */
+    private suspend fun syncUserProfiles(userIds: Set<String>) {
+        if (userIds.isEmpty()) return
+
+        try {
+            val usersCollection = firestore.collection("users")
+            val userProfiles = mutableListOf<UserProfile>()
+
+            // Fetch users in batches (Firestore limit is 10 per batch for whereIn)
+            // Nhưng vì chúng ta dùng document().get(), không có giới hạn batch
+            // Tuy nhiên để tối ưu, chúng ta vẫn fetch từng batch
+            userIds.chunked(10).forEach { batch ->
+                val futures = batch.map { userId ->
+                    usersCollection.document(userId).get()
+                }
+                val snapshots = futures.map { it.await() }
+
+                snapshots.forEach { snapshot ->
+                    if (snapshot.exists()) {
+                        val userDto = snapshot.toObject(User::class.java)
+                        userDto?.let { user ->
+                            userProfiles.add(
+                                UserProfile(
+                                    id = user.id,
+                                    name = user.name,
+                                    username = user.username,
+                                    email = user.email ?: "",
+                                    phoneNumber = user.phoneNumber,
+                                    avatarUrl = user.avatarUrl,
+                                    bio = user.bio,
+                                    isVerified = user.isVerified,
+                                    postCount = user.postCount,
+                                    followerCount = user.followerCount,
+                                    followingCount = user.followingCount,
+                                    totalLikesReceived = user.totalLikesReceived,
+                                    createdAt = user.createdAt,
+                                    updatedAt = user.updatedAt
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (userProfiles.isNotEmpty()) {
+                userDao.upsertAll(userProfiles)
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("PostRepositoryImpl", "Error syncing user profiles", e)
+            // Không throw error để không làm gián đoạn refresh posts
         }
     }
 }

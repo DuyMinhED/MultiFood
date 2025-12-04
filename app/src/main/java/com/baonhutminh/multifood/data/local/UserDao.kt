@@ -12,6 +12,9 @@ interface UserDao {
     @Upsert
     suspend fun upsert(userProfile: UserProfile)
 
+    @Upsert
+    suspend fun upsertAll(userProfiles: List<UserProfile>)
+
     @Query("SELECT * FROM user_profiles WHERE id = :userId")
     fun getUserProfile(userId: String): Flow<UserProfile?>
 

@@ -13,6 +13,7 @@ sealed class Screen(
     val title: String?=null,
     val icon: ImageVector? = null
 ) {
+    data object Onboarding : Screen("onboarding_screen", "Giới thiệu")
     data object Login : Screen("login_screen", "Đăng nhập")
     data object SignUp : Screen("signup_screen", "Đăng ký")
 
