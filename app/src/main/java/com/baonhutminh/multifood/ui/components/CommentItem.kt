@@ -38,6 +38,7 @@ fun CommentItem(
     onCancelEdit: () -> Unit = {},
     onLikeClick: () -> Unit = {},
     onReplyClick: () -> Unit = {},
+    onAuthorClick: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val comment = commentWithAuthor.comment
@@ -56,6 +57,11 @@ fun CommentItem(
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                .then(
+                    if (onAuthorClick != null && author != null) {
+                        Modifier.clickable { onAuthorClick(author.id) }
+                    } else Modifier
+                )
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -64,11 +70,17 @@ fun CommentItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = if (onAuthorClick != null && author != null) {
+                        Modifier.clickable { onAuthorClick(author.id) }
+                    } else Modifier
+                ) {
                     Text(
                         text = author?.name ?: "Người dùng ẩn danh",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = if (onAuthorClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(

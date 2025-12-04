@@ -24,8 +24,7 @@ interface CommentLikeDao {
 
     @Query("SELECT COUNT(*) > 0 FROM comment_likes WHERE commentId = :commentId AND userId = :userId")
     fun isLiked(commentId: String, userId: String): Flow<Boolean>
-    
-    // Thêm hàm xóa tất cả để dọn dẹp khi người dùng đăng xuất
+
     @Query("DELETE FROM comment_likes WHERE userId = :userId")
     suspend fun clearAllForUser(userId: String)
 }

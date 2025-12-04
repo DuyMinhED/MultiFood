@@ -15,14 +15,9 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.userProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.snapshots
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.CancellationException
 import javax.inject.Inject
@@ -46,30 +41,62 @@ class ProfileRepositoryImpl @Inject constructor(
             Resource.Success(profile)
         }
     }
+    
+    override fun getUserProfileById(userId: String): Flow<Resource<UserProfile?>> {
+        return userDao.getUserProfile(userId).map { profile ->
+            if (profile != null) {
+                Resource.Success(profile)
+            } else {
+                // Nếu chưa có trong Room, fetch từ Firestore
+                try {
+                    val doc = usersCollection.document(userId).get().await()
+                    val firebaseProfile = doc.toObject(UserProfile::class.java)
+                    if (firebaseProfile != null) {
+                        userDao.upsert(firebaseProfile)
+                    }
+                    Resource.Success(firebaseProfile)
+                } catch (e: Exception) {
+                    Resource.Error(e.message ?: "Không thể tải thông tin người dùng")
+                }
+            }
+        }
+    }
+    
+    override suspend fun refreshUserProfileById(userId: String) {
+        try {
+            val doc = usersCollection.document(userId).get().await()
+            val firebaseProfile = doc.toObject(UserProfile::class.java)
+            if (firebaseProfile != null) {
+                userDao.upsert(firebaseProfile)
+            }
+        } catch (e: Exception) {
+            Log.e("ProfileRepositoryImpl", "Error refreshing user profile: $userId", e)
+        }
+    }
 
     override fun getLikedPostsForCurrentUser(): Flow<List<PostLikeEntity>> {
         val currentUserId = auth.currentUser?.uid ?: return kotlinx.coroutines.flow.flowOf(emptyList())
-        return likesCollection.whereEqualTo("userId", currentUserId)
-            .snapshots()
-            .flatMapLatest { snapshot ->
-                val likes = snapshot.documents.mapNotNull { doc ->
-                    doc.getString("postId")?.let { postId ->
-                        PostLikeEntity(postId = postId, userId = currentUserId)
-                    }
+        // Chỉ dùng Room làm source of truth - không dùng Firestore realtime để tránh conflict
+        return postLikeDao.getLikedPosts(currentUserId)
+    }
+    
+    // Sync likes từ Firestore về Room (gọi khi cần)
+    override suspend fun syncLikesFromFirestore() {
+        val currentUserId = auth.currentUser?.uid ?: return
+        try {
+            val snapshot = likesCollection.whereEqualTo("userId", currentUserId).get().await()
+            val likes = snapshot.documents.mapNotNull { doc ->
+                doc.getString("postId")?.let { postId ->
+                    PostLikeEntity(postId = postId, userId = currentUserId)
                 }
-                postLikeDao.clearAllForUser(currentUserId)
-                if (likes.isNotEmpty()) {
-                    postLikeDao.insertAll(likes)
-                }
-                postLikeDao.getLikedPosts(currentUserId)
             }
-            .onStart {
-                emitAll(postLikeDao.getLikedPosts(currentUserId))
+            postLikeDao.clearAllForUser(currentUserId)
+            if (likes.isNotEmpty()) {
+                postLikeDao.insertAll(likes)
             }
-            .catch { e ->
-                Log.e("ProfileRepositoryImpl", "Error getting liked posts", e)
-                emitAll(postLikeDao.getLikedPosts(currentUserId))
-            }
+        } catch (e: Exception) {
+            Log.e("ProfileRepositoryImpl", "Error syncing likes", e)
+        }
     }
 
     override suspend fun toggleLike(postId: String, isCurrentlyLiked: Boolean): Resource<Unit> {

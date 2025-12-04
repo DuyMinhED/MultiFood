@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.baonhutminh.multifood.data.local.AppDatabase
 import com.baonhutminh.multifood.data.local.CommentDao
 import com.baonhutminh.multifood.data.local.CommentLikeDao
+import com.baonhutminh.multifood.data.local.FollowDao
 import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.local.PostLikeDao
@@ -68,5 +69,10 @@ object DatabaseModule {
     @Provides
     fun providePostImageDao(appDatabase: AppDatabase): PostImageDao {
         return appDatabase.postImageDao()
+    }
+
+    @Provides
+    fun provideFollowDao(appDatabase: AppDatabase): FollowDao {
+        return appDatabase.followDao()
     }
 }

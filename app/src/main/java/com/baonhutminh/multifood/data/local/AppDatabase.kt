@@ -6,6 +6,7 @@ import androidx.room.TypeConverters
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.CommentLikeEntity
 import com.baonhutminh.multifood.data.model.Converters
+import com.baonhutminh.multifood.data.model.FollowEntity
 import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.PostImageEntity
 import com.baonhutminh.multifood.data.model.PostLikeEntity
@@ -20,9 +21,10 @@ import com.baonhutminh.multifood.data.model.UserProfile
         PostLikeEntity::class,
         CommentLikeEntity::class,
         RestaurantEntity::class,
-        PostImageEntity::class
+        PostImageEntity::class,
+        FollowEntity::class
     ],
-    version = 13, // Thêm CommentLikeEntity
+    version = 14, // Thêm FollowEntity
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -35,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun postLikeDao(): PostLikeDao
     abstract fun restaurantDao(): RestaurantDao
     abstract fun postImageDao(): PostImageDao
+    abstract fun followDao(): FollowDao
 
     companion object {
         const val DATABASE_NAME = "multifood_db"

@@ -1,24 +1,26 @@
 package com.baonhutminh.multifood.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import com.baonhutminh.multifood.ui.components.LoadingScreen
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
-import androidx.activity.ComponentActivity
-import dagger.hilt.android.EntryPointAccessors
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.baonhutminh.multifood.data.preferences.SettingsPreferences
-import com.baonhutminh.multifood.di.AuthRepositoryEntryPoint
 import com.baonhutminh.multifood.ui.screens.CreatePostScreen
 import com.baonhutminh.multifood.ui.screens.HomeScreen
 import com.baonhutminh.multifood.ui.screens.LoginScreen
@@ -28,6 +30,8 @@ import com.baonhutminh.multifood.ui.screens.ProfileScreen
 import com.baonhutminh.multifood.ui.screens.SearchScreen
 import com.baonhutminh.multifood.ui.screens.SettingsScreen
 import com.baonhutminh.multifood.ui.screens.SignUpScreen
+import com.baonhutminh.multifood.ui.screens.UserProfileScreen
+import com.baonhutminh.multifood.viewmodel.OnboardingViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -36,16 +40,6 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val auth = FirebaseAuth.getInstance()
-    val scope = rememberCoroutineScope()
-    
-    // Get AuthRepository through Hilt EntryPoint
-    val context = LocalContext.current
-    val authRepository = remember {
-        EntryPointAccessors.fromActivity(
-            context as ComponentActivity,
-            AuthRepositoryEntryPoint::class.java
-        ).authRepository()
-    }
     
     // Check onboarding status - đợi load xong trước khi quyết định
     var isCheckingOnboarding by remember { mutableStateOf(true) }
@@ -135,14 +129,9 @@ fun AppNavigation(
                         navController.navigate(Screen.Settings.route)
                     },
                     onLogout = {
-                        // Gọi signOut qua AuthRepository để đảm bảo Google Sign-In cũng được sign out
-                        authRepository.signOut()
-                        scope.launch {
-                            // Đợi một chút để đảm bảo signOutGoogle() hoàn thành
-                            kotlinx.coroutines.delay(500)
-                            navController.navigate(Screen.Login.route) {
-                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
-                            }
+                        auth.signOut()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         }
                     },
                     onClickHome={

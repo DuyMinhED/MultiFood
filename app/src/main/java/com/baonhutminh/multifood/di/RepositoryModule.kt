@@ -4,6 +4,8 @@ import com.baonhutminh.multifood.data.repository.AuthRepository
 import com.baonhutminh.multifood.data.repository.AuthRepositoryImpl
 import com.baonhutminh.multifood.data.repository.CommentRepository
 import com.baonhutminh.multifood.data.repository.CommentRepositoryImpl
+import com.baonhutminh.multifood.data.repository.FollowRepository
+import com.baonhutminh.multifood.data.repository.FollowRepositoryImpl
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.PostRepositoryImpl
 import com.baonhutminh.multifood.data.repository.ProfileRepository
@@ -46,4 +48,7 @@ abstract class RepositoryModule {
     @Singleton
     abstract fun bindRestaurantRepository(impl: RestaurantRepositoryImpl): RestaurantRepository
 
+    @Binds
+    @Singleton
+    abstract fun bindFollowRepository(impl: FollowRepositoryImpl): FollowRepository
 }

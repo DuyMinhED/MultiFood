@@ -51,7 +51,8 @@ fun HomeScreen(
     onDetailClick: (String) -> Unit,
     onAccountClick: () -> Unit,
     onCreateClick: () -> Unit,
-    onSearchClick: () -> Unit
+    onSearchClick: () -> Unit,
+    onUserProfileClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
@@ -189,7 +190,8 @@ fun HomeScreen(
                                     onLikeClick = { viewModel.toggleLike(postWithAuthor.post.id) },
                                     onItemClick = { onDetailClick(postWithAuthor.post.id) },
                                     images = images,
-                                    likeCount = postWithAuthor.post.likeCount
+                                    likeCount = postWithAuthor.post.likeCount,
+                                    onAuthorClick = onUserProfileClick
                                 )
                             }
                         }
