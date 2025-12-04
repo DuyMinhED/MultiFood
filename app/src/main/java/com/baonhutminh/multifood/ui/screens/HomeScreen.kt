@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,8 +21,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
@@ -155,7 +158,7 @@ fun HomeScreen(
                     uiState.errorMessage != null -> {
                         ErrorState(
                             message = uiState.errorMessage!!,
-                            onRetry = { viewModel.onTabSelected(uiState.selectedTab) },
+                            onRetry = { viewModel.refreshPosts() },
                             modifier = Modifier.align(Alignment.Center)
                         )
                     }
@@ -185,7 +188,8 @@ fun HomeScreen(
                                     isLiked = isLiked,
                                     onLikeClick = { viewModel.toggleLike(postWithAuthor.post.id) },
                                     onItemClick = { onDetailClick(postWithAuthor.post.id) },
-                                    images = images
+                                    images = images,
+                                    likeCount = postWithAuthor.post.likeCount
                                 )
                             }
                         }

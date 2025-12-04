@@ -23,4 +23,6 @@ interface ProfileRepository {
     suspend fun uploadAvatar(imageUri: Uri): Resource<String>
 
     suspend fun changePassword(currentPassword: String, newPassword: String): Resource<Unit>
+
+    suspend fun updatePhoneNumber(newPhoneNumber: String): Resource<Unit>
 }

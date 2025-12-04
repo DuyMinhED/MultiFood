@@ -38,7 +38,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -51,7 +50,8 @@ fun PostItemCard(
     isLiked: Boolean,
     onLikeClick: (String) -> Unit,
     onItemClick: (String) -> Unit,
-    images: List<String> = emptyList(), // URLs của images
+    images: List<String> = emptyList(),
+    likeCount: Int, // Thêm tham số này
     modifier: Modifier = Modifier
 ) {
     val post = postWithAuthor.post
@@ -232,20 +232,29 @@ fun PostItemCard(
                         }
                     }
 
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isLiked) Color.Red.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        IconButton(
-                            onClick = { onLikeClick(post.id) },
-                            modifier = Modifier.size(40.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "$likeCount",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isLiked) Color.Red.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant
                         ) {
-                            Icon(
-                                imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = if (isLiked) "Unlike" else "Like",
-                                tint = if (isLiked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            IconButton(
+                                onClick = { onLikeClick(post.id) },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    contentDescription = if (isLiked) "Unlike" else "Like",
+                                    tint = if (isLiked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }

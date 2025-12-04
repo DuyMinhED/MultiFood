@@ -8,33 +8,20 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Article
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Help
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +29,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,6 +39,7 @@ import coil.compose.AsyncImage
 import com.baonhutminh.multifood.ui.components.AppBottomBar
 import com.baonhutminh.multifood.ui.components.AppTopBar
 import com.baonhutminh.multifood.ui.navigation.Screen
+import com.baonhutminh.multifood.viewmodel.ProfileUiEvent
 import com.baonhutminh.multifood.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
 
@@ -61,17 +52,19 @@ fun ProfileScreen(
     onClickHome: () -> Unit,
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
-    val userProfile by viewModel.userProfile
-    val isLoading by viewModel.isLoading
-    val isUpdating by viewModel.isUpdating
-    val errorMessage by viewModel.errorMessage
-    val successMessage by viewModel.successMessage
+    val uiState by viewModel.uiState.collectAsState()
+    val userProfile = uiState.userProfile
+    val isLoading = uiState.isLoading
+    val isUpdating = uiState.isUpdating
 
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showEditBioDialog by remember { mutableStateOf(false) }
+    var showEditPhoneDialog by remember { mutableStateOf(false) }
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var currentPasswordError by remember { mutableStateOf<String?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -82,17 +75,26 @@ fun ProfileScreen(
         uri?.let { viewModel.uploadAvatar(it) }
     }
 
-    LaunchedEffect(successMessage, errorMessage) {
-        successMessage?.let {
-            scope.launch {
-                snackbarHostState.showSnackbar(it)
-                viewModel.clearMessages()
-            }
-        }
-        errorMessage?.let {
-            scope.launch {
-                snackbarHostState.showSnackbar(it)
-                viewModel.clearMessages()
+    LaunchedEffect(key1 = true) {
+        viewModel.eventFlow.collect { event ->
+            when (event) {
+                is ProfileUiEvent.UpdateSuccess -> {
+                    scope.launch { snackbarHostState.showSnackbar(event.message) }
+                    if (event.message.contains("mật khẩu")) {
+                        showChangePasswordDialog = false
+                        currentPasswordError = null
+                    }
+                    if (event.message.contains("tên")) showEditNameDialog = false
+                    if (event.message.contains("giới thiệu")) showEditBioDialog = false
+                    if (event.message.contains("số điện thoại")) showEditPhoneDialog = false
+                }
+                is ProfileUiEvent.ShowError -> {
+                    if (showChangePasswordDialog && event.message.contains("Mật khẩu hiện tại không đúng")) {
+                        currentPasswordError = event.message
+                    } else {
+                        scope.launch { snackbarHostState.showSnackbar(event.message) }
+                    }
+                }
             }
         }
     }
@@ -126,7 +128,7 @@ fun ProfileScreen(
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.primary
                 )
-            } else {
+            } else if (userProfile != null) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -149,9 +151,9 @@ fun ProfileScreen(
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable { imagePickerLauncher.launch("image/*") }
                             ) {
-                                if (userProfile?.avatarUrl?.isNotEmpty() == true) {
+                                if (userProfile.avatarUrl?.isNotEmpty() == true) {
                                     AsyncImage(
-                                        model = userProfile?.avatarUrl,
+                                        model = userProfile.avatarUrl,
                                         contentDescription = "Avatar",
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
@@ -198,7 +200,7 @@ fun ProfileScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     Text(
-                                        text = "Đang tải lên...",
+                                        text = "Đang xử lý...",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp)
@@ -212,7 +214,7 @@ fun ProfileScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = userProfile?.name ?: "Người dùng",
+                                    text = userProfile.name,
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -228,16 +230,25 @@ fun ProfileScreen(
                             }
 
                             Text(
-                                text = userProfile?.email ?: "",
+                                text = userProfile.email,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
+                            if (userProfile.phoneNumber?.isNotEmpty() == true) {
+                                Text(
+                                    text = userProfile.phoneNumber,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            if (userProfile?.bio?.isNotEmpty() == true) {
+                            if (userProfile.bio?.isNotEmpty() == true) {
                                 Text(
-                                    text = userProfile?.bio ?: "",
+                                    text = userProfile.bio,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
@@ -253,7 +264,7 @@ fun ProfileScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (userProfile?.bio?.isNotEmpty() == true)
+                                    text = if (userProfile.bio?.isNotEmpty() == true)
                                         "Sửa giới thiệu"
                                     else
                                         "Thêm giới thiệu"
@@ -268,24 +279,38 @@ fun ProfileScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         StatCard(
-                            icon = Icons.Default.Article,
-                            count = userProfile?.postCount ?: 0,
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.AutoMirrored.Filled.Article,
+                            count = userProfile.postCount,
                             label = "Bài viết"
                         )
                         StatCard(
+                            modifier = Modifier.weight(1f),
                             icon = Icons.Default.Favorite,
-                            count = userProfile?.totalLikesReceived ?: 0, // <-- Đã sửa
+                            count = userProfile.totalLikesReceived,
                             label = "Lượt thích"
+                        )
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.People,
+                            count = userProfile.followerCount,
+                            label = "Follower"
+                        )
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.PersonAdd,
+                            count = userProfile.followingCount,
+                            label = "Following"
                         )
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = "Cài đặt & Hỗ trợ",
+                        text = "Tài khoản & Bảo mật",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -303,6 +328,13 @@ fun ProfileScreen(
                     ) {
                         Column {
                             ProfileMenuItem(
+                                icon = Icons.Default.Phone,
+                                title = "Số điện thoại",
+                                subtitle = userProfile.phoneNumber ?: "Thêm số điện thoại",
+                                onClick = { showEditPhoneDialog = true }
+                            )
+                            HorizontalDivider()
+                            ProfileMenuItem(
                                 icon = Icons.Default.Settings,
                                 title = "Cài đặt",
                                 subtitle = "Tùy chỉnh ứng dụng",
@@ -310,7 +342,14 @@ fun ProfileScreen(
                             )
                             HorizontalDivider()
                             ProfileMenuItem(
-                                icon = Icons.Default.Help,
+                                icon = Icons.Default.Lock,
+                                title = "Đổi mật khẩu",
+                                subtitle = "Bảo mật tài khoản của bạn",
+                                onClick = { showChangePasswordDialog = true }
+                            )
+                            HorizontalDivider()
+                            ProfileMenuItem(
+                                icon = Icons.AutoMirrored.Filled.Help,
                                 title = "Trợ giúp & Hỗ trợ",
                                 subtitle = "Câu hỏi thường gặp",
                                 onClick = { showHelpDialog = true }
@@ -324,7 +363,7 @@ fun ProfileScreen(
                             )
                             HorizontalDivider()
                             ProfileMenuItem(
-                                icon = Icons.Default.Logout,
+                                icon = Icons.AutoMirrored.Filled.Logout,
                                 title = "Đăng xuất",
                                 subtitle = "Thoát khỏi tài khoản",
                                 onClick = { showLogoutDialog = true },
@@ -340,27 +379,58 @@ fun ProfileScreen(
     }
 
     if (showEditNameDialog) {
-        EditTextDialog(
-            title = "Đổi tên hiển thị",
-            currentValue = userProfile?.name ?: "",
-            onDismiss = { showEditNameDialog = false },
-            onConfirm = { newName ->
-                viewModel.updateName(newName)
-                showEditNameDialog = false
-            }
-        )
+        userProfile?.let {
+            EditTextDialog(
+                title = "Đổi tên hiển thị",
+                currentValue = it.name,
+                onDismiss = { showEditNameDialog = false },
+                onConfirm = { newName ->
+                    viewModel.updateName(newName)
+                }
+            )
+        }
     }
 
     if (showEditBioDialog) {
-        EditTextDialog(
-            title = "Giới thiệu bản thân",
-            currentValue = userProfile?.bio ?: "",
-            onDismiss = { showEditBioDialog = false },
-            onConfirm = { newBio ->
-                viewModel.updateBio(newBio)
-                showEditBioDialog = false
+        userProfile?.let {
+            EditTextDialog(
+                title = "Giới thiệu bản thân",
+                currentValue = it.bio ?: "",
+                onDismiss = { showEditBioDialog = false },
+                onConfirm = { newBio ->
+                    viewModel.updateBio(newBio)
+                },
+                maxLines = 3
+            )
+        }
+    }
+    if (showEditPhoneDialog) {
+        userProfile?.let {
+            EditTextDialog(
+                title = "Cập nhật số điện thoại",
+                currentValue = it.phoneNumber ?: "",
+                onDismiss = { showEditPhoneDialog = false },
+                onConfirm = { newPhone ->
+                    viewModel.updatePhoneNumber(newPhone)
+                },
+                keyboardType = KeyboardType.Phone
+            )
+        }
+    }
+
+
+    if (showChangePasswordDialog) {
+        ChangePasswordDialog(
+            isCurrentPasswordError = currentPasswordError != null,
+            currentPasswordErrorText = currentPasswordError,
+            onDismiss = {
+                showChangePasswordDialog = false
+                currentPasswordError = null // Reset error on dismiss
             },
-            maxLines = 3
+            onConfirm = { current, new, confirm ->
+                currentPasswordError = null // Reset error on new submission
+                viewModel.changePassword(current, new, confirm)
+            }
         )
     }
 
@@ -369,25 +439,14 @@ fun ProfileScreen(
             onDismissRequest = { showLogoutDialog = false },
             icon = {
                 Icon(
-                    imageVector = Icons.Default.Logout,
+                    imageVector = Icons.AutoMirrored.Filled.Logout,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(32.dp)
                 )
             },
-            title = {
-                Text(
-                    "Đăng xuất",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    "Bạn có chắc muốn đăng xuất khỏi tài khoản?",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
+            title = { Text("Đăng xuất", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = { Text("Bạn có chắc muốn đăng xuất khỏi tài khoản?", style = MaterialTheme.typography.bodyMedium) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -395,168 +454,84 @@ fun ProfileScreen(
                         onLogout()
                     }
                 ) {
-                    Text(
-                        "Đăng xuất",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Đăng xuất", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Hủy")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Hủy") } }
         )
     }
 
     if (showHelpDialog) {
         AlertDialog(
             onDismissRequest = { showHelpDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Help,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
-                )
-            },
-            title = {
-                Text(
-                    "Trợ giúp & Hỗ trợ",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
+            icon = { Icon(imageVector = Icons.AutoMirrored.Filled.Help, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) },
+            title = { Text("Trợ giúp & Hỗ trợ", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text(
-                        text = "Liên hệ hỗ trợ:",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Text("Liên hệ hỗ trợ:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("📧 Email: multifood@gmail.com")
                     Text("📞 Hotline: 082-741-0398")
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Câu hỏi thường gặp:",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Text("Câu hỏi thường gặp:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("• Làm sao để đăng bài review?")
                     Text("• Làm sao để thay đổi mật khẩu?")
                     Text("• Cách xóa bài viết của tôi?")
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showHelpDialog = false }) {
-                    Text("Đóng", fontWeight = FontWeight.Bold)
-                }
-            }
+            confirmButton = { TextButton(onClick = { showHelpDialog = false }) { Text("Đóng", fontWeight = FontWeight.Bold) } }
         )
     }
 
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
-            icon = {
-                Text("🍜", style = MaterialTheme.typography.displayMedium)
-            },
-            title = {
-                Text(
-                    "MultiFood",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            },
+            icon = { Text("🍜", style = MaterialTheme.typography.displayMedium) },
+            title = { Text("MultiFood", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
             text = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "Phiên bản 1.0.0",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text("Phiên bản 1.0.0", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Ứng dụng chia sẻ trải nghiệm ẩm thực hàng đầu Việt Nam.",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text("Ứng dụng chia sẻ trải nghiệm ẩm thực hàng đầu Việt Nam.", textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "© 2024 MultiFood Team",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("© 2024 MultiFood Team", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text("Đóng", fontWeight = FontWeight.Bold)
-                }
-            }
+            confirmButton = { TextButton(onClick = { showAboutDialog = false }) { Text("Đóng", fontWeight = FontWeight.Bold) } }
         )
     }
 }
 
 @Composable
 private fun StatCard(
+    modifier: Modifier = Modifier,
     icon: ImageVector,
     count: Int,
     label: String
 ) {
     Card(
-        modifier = Modifier.width(160.dp),
+        modifier = modifier,
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(vertical = 16.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
+            Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
+            Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
 
 @Composable
-private fun ProfileMenuItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String = "",
-    onClick: () -> Unit,
-    tint: Color = MaterialTheme.colorScheme.onSurface
-) {
+private fun ProfileMenuItem(icon: ImageVector, title: String, subtitle: String = "", onClick: () -> Unit, tint: Color = MaterialTheme.colorScheme.onSurface) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -569,37 +544,18 @@ private fun ProfileMenuItem(
             color = tint.copy(alpha = 0.1f),
             modifier = Modifier.size(40.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier
-                    .padding(8.dp)
-                    .size(24.dp)
-            )
+            Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier
+                .padding(8.dp)
+                .size(24.dp))
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = tint
-            )
+            Text(text = title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = tint)
             if (subtitle.isNotEmpty()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
+        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -609,19 +565,14 @@ private fun EditTextDialog(
     currentValue: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
-    maxLines: Int = 1
+    maxLines: Int = 1,
+    keyboardType: KeyboardType = KeyboardType.Text
 ) {
     var text by remember { mutableStateOf(currentValue) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        },
+        title = { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
             OutlinedTextField(
                 value = text,
@@ -629,13 +580,110 @@ private fun EditTextDialog(
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = maxLines,
                 singleLine = maxLines == 1,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 placeholder = { Text("Nhập nội dung...") }
             )
         },
+        confirmButton = { TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Lưu", fontWeight = FontWeight.Bold) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } }
+    )
+}
+
+@Composable
+private fun ChangePasswordDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit,
+    isCurrentPasswordError: Boolean,
+    currentPasswordErrorText: String?
+) {
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var isCurrentPasswordVisible by remember { mutableStateOf(false) }
+    var isNewPasswordVisible by remember { mutableStateOf(false) }
+    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
+
+    val doPasswordsMatch = newPassword == confirmPassword
+    val isConfirmEnabled = currentPassword.isNotBlank() && newPassword.length >= 6 && doPasswordsMatch
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Đổi mật khẩu", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it },
+                    label = { Text("Mật khẩu hiện tại") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = isCurrentPasswordError,
+                    visualTransformation = if (isCurrentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        val image = if (isCurrentPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        IconButton(onClick = { isCurrentPasswordVisible = !isCurrentPasswordVisible }) {
+                            Icon(imageVector = image, contentDescription = if (isCurrentPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
+                        }
+                    }
+                )
+                if (isCurrentPasswordError) {
+                    currentPasswordErrorText?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("Mật khẩu mới (ít nhất 6 ký tự)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        val image = if (isNewPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        IconButton(onClick = { isNewPasswordVisible = !isNewPasswordVisible }) {
+                            Icon(imageVector = image, contentDescription = if (isNewPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = { Text("Xác nhận mật khẩu mới") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = !doPasswordsMatch && confirmPassword.isNotEmpty(),
+                    trailingIcon = {
+                        val image = if (isConfirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                            Icon(imageVector = image, contentDescription = if (isConfirmPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
+                        }
+                    }
+                )
+                if (!doPasswordsMatch && confirmPassword.isNotEmpty()) {
+                    Text(
+                        text = "Mật khẩu xác nhận không khớp.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(text) },
-                enabled = text.isNotBlank()
+                onClick = { onConfirm(currentPassword, newPassword, confirmPassword) },
+                enabled = isConfirmEnabled
             ) {
                 Text("Lưu", fontWeight = FontWeight.Bold)
             }

@@ -20,8 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.baonhutminh.multifood.data.model.AppTheme
@@ -35,7 +33,6 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showThemeDialog by remember { mutableStateOf(false) }
-    var showPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
@@ -73,15 +70,6 @@ fun SettingsScreen(
                 subtitle = if (uiState.isDarkMode) "Đang bật" else "Đang tắt",
                 checked = uiState.isDarkMode,
                 onCheckedChange = { viewModel.setDarkMode(it) }
-            )
-
-            // --- Phần Tài khoản ---
-            SettingsHeader("Tài khoản")
-            SettingsItem(
-                icon = Icons.Default.Lock,
-                title = "Đổi mật khẩu",
-                subtitle = "Thay đổi mật khẩu đăng nhập của bạn",
-                onClick = { showPasswordDialog = true }
             )
 
             // --- Phần Thông báo ---
@@ -164,15 +152,6 @@ fun SettingsScreen(
                 TextButton(onClick = { showLogoutDialog = false }) {
                     Text("Hủy")
                 }
-            }
-        )
-    }
-
-    if (showPasswordDialog) {
-        ChangePasswordDialog(
-            onDismiss = { showPasswordDialog = false },
-            onConfirm = { current, new, confirm ->
-                viewModel.changePassword(current, new, confirm)
             }
         )
     }
@@ -390,92 +369,6 @@ private fun ThemeSelectionDialog(
     )
 }
 
-@Composable
-private fun ChangePasswordDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (currentPassword: String, newPassword: String, confirmPassword: String) -> Unit
-) {
-    var currentPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-
-    var isCurrentPasswordVisible by remember { mutableStateOf(false) }
-    var isNewPasswordVisible by remember { mutableStateOf(false) }
-    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
-
-    val isConfirmEnabled = currentPassword.isNotBlank() && newPassword.isNotBlank() && confirmPassword.isNotBlank()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Đổi mật khẩu") },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Mật khẩu hiện tại
-                OutlinedTextField(
-                    value = currentPassword,
-                    onValueChange = { currentPassword = it },
-                    label = { Text("Mật khẩu hiện tại") },
-                    singleLine = true,
-                    visualTransformation = if (isCurrentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val image = if (isCurrentPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
-                        IconButton(onClick = { isCurrentPasswordVisible = !isCurrentPasswordVisible }) {
-                            Icon(imageVector = image, contentDescription = if (isCurrentPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
-                        }
-                    }
-                )
-
-                // Mật khẩu mới
-                OutlinedTextField(
-                    value = newPassword,
-                    onValueChange = { newPassword = it },
-                    label = { Text("Mật khẩu mới") },
-                    singleLine = true,
-                    visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val image = if (isNewPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
-                        IconButton(onClick = { isNewPasswordVisible = !isNewPasswordVisible }) {
-                            Icon(imageVector = image, contentDescription = if (isNewPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
-                        }
-                    }
-                )
-
-                // Xác nhận mật khẩu mới
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text("Xác nhận mật khẩu mới") },
-                    singleLine = true,
-                    visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val image = if (isConfirmPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
-                        IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
-                            Icon(imageVector = image, contentDescription = if (isConfirmPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
-                        }
-                    }
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onConfirm(currentPassword, newPassword, confirmPassword)
-                    onDismiss()
-                },
-                enabled = isConfirmEnabled
-            ) {
-                Text("Xác nhận")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Hủy")
-            }
-        }
-    )
-}
 
 @Composable
 private fun PolicyContentDialog(

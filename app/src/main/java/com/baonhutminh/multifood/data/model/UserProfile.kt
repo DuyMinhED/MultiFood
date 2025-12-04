@@ -17,8 +17,9 @@ data class UserProfile(
     val name: String = "",
     val username: String = "",
     val email: String = "",
-    val avatarUrl: String = "",
-    val bio: String = "",
+    val phoneNumber: String? = null,
+    val avatarUrl: String? = null,
+    val bio: String? = null,
     val isVerified: Boolean = false,
 
     val postCount: Int = 0,

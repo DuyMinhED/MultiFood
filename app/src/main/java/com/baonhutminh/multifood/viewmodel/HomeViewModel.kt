@@ -10,6 +10,7 @@ import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -30,6 +31,14 @@ data class HomeUiState(
     val errorMessage: String? = null
 )
 
+private data class HomeIntermediateState(
+    val posts: List<PostWithAuthor>,
+    val userProfile: UserProfile?,
+    val likedPosts: List<PostLikeEntity>,
+    val postImages: Map<String, List<String>>,
+    val selectedTab: PostFilterTab
+)
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val postRepository: PostRepository,
@@ -41,6 +50,7 @@ class HomeViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val postsFlow = _selectedTab.flatMapLatest { tab ->
         when (tab) {
             PostFilterTab.ALL -> postRepository.getAllPosts()
@@ -50,20 +60,23 @@ class HomeViewModel @Inject constructor(
                 } ?: flowOf(Resource.Success(emptyList()))
             }
             PostFilterTab.LIKED -> {
-                profileRepository.getLikedPostsForCurrentUser().first().map { it.postId }?.let {
-                    postRepository.getLikedPosts(it)
-                } ?: flowOf(Resource.Success(emptyList()))
+                profileRepository.getLikedPostsForCurrentUser().flatMapLatest { likedPosts ->
+                    if (likedPosts.isEmpty()) {
+                        flowOf(Resource.Success(emptyList()))
+                    } else {
+                        postRepository.getLikedPosts(likedPosts.map { it.postId })
+                    }
+                }
             }
         }
     }
 
-    // Flow để load images cho tất cả posts
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val postImagesFlow = postsFlow.flatMapLatest { postsRes ->
         val posts = (postsRes as? Resource.Success<List<PostWithAuthor>>)?.data ?: emptyList()
         if (posts.isEmpty()) {
             flowOf(emptyMap<String, List<String>>())
         } else {
-            // Load images cho tất cả posts
             combine(
                 posts.map { post ->
                     postImageDao.getImagesForPost(post.post.id)
@@ -75,31 +88,34 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<HomeUiState> = combine(
-        postsFlow,
-        profileRepository.getUserProfile(),
-        profileRepository.getLikedPostsForCurrentUser(),
-        postImagesFlow,
-        _selectedTab,
+        combine(
+            postsFlow,
+            profileRepository.getUserProfile(),
+            profileRepository.getLikedPostsForCurrentUser(),
+            postImagesFlow,
+            _selectedTab
+        ) { postsRes, profileRes, likedPosts, postImages, tab ->
+            HomeIntermediateState(
+                posts = (postsRes as? Resource.Success<List<PostWithAuthor>>)?.data ?: emptyList(),
+                userProfile = (profileRes as? Resource.Success<UserProfile?>)?.data,
+                likedPosts = likedPosts,
+                postImages = postImages,
+                selectedTab = tab
+            )
+        },
         _isLoading,
         _errorMessage
-    ) { values ->
-        val postsRes = values[0] as Resource<List<PostWithAuthor>>
-        val profileRes = values[1] as Resource<UserProfile?>
-        val likedPosts = values[2] as List<PostLikeEntity>
-        val postImages = values[3] as Map<String, List<String>>
-        val tab = values[4] as PostFilterTab
-        val loading = values[5] as Boolean
-        val error = values[6] as String?
-        
+    ) { intermediateState, isLoading, errorMessage ->
         HomeUiState(
-            posts = (postsRes as? Resource.Success<List<PostWithAuthor>>)?.data ?: emptyList(),
-            userProfile = (profileRes as? Resource.Success<UserProfile?>)?.data,
-            likedPosts = likedPosts,
-            postImages = postImages,
-            selectedTab = tab,
-            isLoading = loading,
-            errorMessage = error
+            posts = intermediateState.posts,
+            userProfile = intermediateState.userProfile,
+            likedPosts = intermediateState.likedPosts,
+            postImages = intermediateState.postImages,
+            selectedTab = intermediateState.selectedTab,
+            isLoading = isLoading,
+            errorMessage = errorMessage
         )
     }.stateIn(
         scope = viewModelScope,
@@ -107,13 +123,16 @@ class HomeViewModel @Inject constructor(
         initialValue = HomeUiState()
     )
 
+
     init {
         viewModelScope.launch {
-            val initialPostsResult = postsFlow.first()
-
-            if ((initialPostsResult as? Resource.Success)?.data.isNullOrEmpty()) {
-                refreshPosts(isInitialLoad = true)
+            _isLoading.value = true
+            val result = postRepository.refreshAllPosts()
+            if (result is Resource.Error) {
+                _errorMessage.value = result.message ?: "Không thể làm mới danh sách bài đăng"
             }
+            profileRepository.refreshUserProfile()
+            _isLoading.value = false
         }
     }
 
@@ -123,28 +142,22 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun refreshPosts(isInitialLoad: Boolean = false) {
+    fun refreshPosts() {
         viewModelScope.launch {
-            if (isInitialLoad) _isLoading.value = true
-
-            profileRepository.refreshUserProfile()
+            _errorMessage.value = null
+            _isLoading.value = true
             val result = postRepository.refreshAllPosts()
-
             if (result is Resource.Error) {
                 _errorMessage.value = result.message ?: "Không thể làm mới danh sách bài đăng"
             }
-            if (isInitialLoad) _isLoading.value = false
+            _isLoading.value = false
         }
     }
 
     fun toggleLike(postId: String) {
         viewModelScope.launch {
             val isLiked = uiState.value.likedPosts.any { it.postId == postId }
-            val result = profileRepository.toggleLike(postId, isLiked)
-            // Refresh post để cập nhật likeCount từ Firestore (Cloud Functions đã cập nhật)
-            if (result is Resource.Success) {
-                postRepository.refreshAllPosts()
-            }
+            profileRepository.toggleLike(postId, isLiked)
         }
     }
 

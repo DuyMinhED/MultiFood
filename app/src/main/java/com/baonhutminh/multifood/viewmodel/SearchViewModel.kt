@@ -45,7 +45,7 @@ class SearchViewModel @Inject constructor(
         _minRating,
         _priceRange,
         profileRepository.getUserProfile(),
-        profileRepository.getLikedPostsForCurrentUser() // <-- Đã thêm
+        profileRepository.getLikedPostsForCurrentUser()
     ) { query, rating, price, userProfileRes, likedPosts ->
         val user = (userProfileRes as? Resource.Success)?.data
         if (query.isBlank()) {
@@ -68,7 +68,6 @@ class SearchViewModel @Inject constructor(
             when (resource) {
                 is Resource.Success -> {
                     val posts = resource.data ?: emptyList()
-                    // Load images cho tất cả posts
                     if (posts.isEmpty()) {
                         flowOf(SearchUiState(
                             results = emptyList(),
@@ -141,11 +140,7 @@ class SearchViewModel @Inject constructor(
     fun toggleLike(postId: String) {
         viewModelScope.launch {
             val isLiked = uiState.value.likedPosts.any { it.postId == postId }
-            val result = profileRepository.toggleLike(postId, isLiked)
-            // Refresh post để cập nhật likeCount từ Firestore (Cloud Functions đã cập nhật)
-            if (result is Resource.Success) {
-                postRepository.refreshAllPosts()
-            }
+            profileRepository.toggleLike(postId, isLiked)
         }
     }
 }

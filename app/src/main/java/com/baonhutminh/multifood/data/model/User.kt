@@ -12,8 +12,8 @@ data class User(
     val name: String = "",
     val username: String = "",
     val email: String? = null,
-    val avatarUrl: String = "",
-    val bio: String = "",
+    val avatarUrl: String? = null,
+    val bio: String? = null,
     val phoneNumber: String? = null,
     val isVerified: Boolean = false,
 

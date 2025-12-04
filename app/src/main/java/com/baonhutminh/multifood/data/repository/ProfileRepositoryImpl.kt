@@ -2,19 +2,22 @@ package com.baonhutminh.multifood.data.repository
 
 import android.net.Uri
 import android.util.Log
-import com.baonhutminh.multifood.data.local.PostLikeDao
 import com.baonhutminh.multifood.data.local.UserDao
 import com.baonhutminh.multifood.data.model.Like
 import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.util.Resource
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.userProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.snapshots
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.CancellationException
@@ -24,12 +27,12 @@ class ProfileRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     private val storage: FirebaseStorage,
-    private val userDao: UserDao,
-    private val postLikeDao: PostLikeDao // <-- Đã thêm
+    private val userDao: UserDao
 ) : ProfileRepository {
 
     private val usersCollection = firestore.collection("users")
     private val postsCollection = firestore.collection("posts")
+    private val likesCollection = firestore.collection("likes")
 
     override fun getUserProfile(): Flow<Resource<UserProfile?>> {
         val currentUser = auth.currentUser ?: return kotlinx.coroutines.flow.flowOf(Resource.Error("Chưa đăng nhập"))
@@ -40,22 +43,45 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override fun getLikedPostsForCurrentUser(): Flow<List<PostLikeEntity>> {
         val currentUserId = auth.currentUser?.uid ?: return kotlinx.coroutines.flow.flowOf(emptyList())
-        return postLikeDao.getLikedPosts(currentUserId)
+        return likesCollection.whereEqualTo("userId", currentUserId).snapshots().map { snapshot ->
+            snapshot.documents.mapNotNull { doc ->
+                val postId = doc.getString("postId")
+                if (postId != null) {
+                    PostLikeEntity(postId = postId, userId = currentUserId)
+                } else {
+                    null
+                }
+            }
+        }.catch { e ->
+            Log.e("ProfileRepositoryImpl", "Error getting liked posts", e)
+            emit(emptyList()) // Emit an empty list on error to prevent crash
+        }
     }
 
     override suspend fun toggleLike(postId: String, isCurrentlyLiked: Boolean): Resource<Unit> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
         return try {
-            val likeRef = postsCollection.document(postId).collection("likes").document(currentUser.uid)
+            val likeDocId = "${currentUser.uid}_$postId"
+            val rootLikeRef = likesCollection.document(likeDocId)
+            val postLikeRef = postsCollection.document(postId).collection("likes").document(currentUser.uid)
 
-            if (isCurrentlyLiked) {
-                likeRef.delete().await()
-                postLikeDao.delete(postId, currentUser.uid)
-            } else {
-                likeRef.set(Like()).await()
-                postLikeDao.insert(PostLikeEntity(postId = postId, userId = currentUser.uid))
-            }
-            // Logic cập nhật counter sẽ do Cloud Function xử lý
+            firestore.runBatch { batch ->
+                if (isCurrentlyLiked) {
+                    // Unlike: Delete from both locations
+                    batch.delete(rootLikeRef)
+                    batch.delete(postLikeRef)
+                } else {
+                    // Like: Add to both locations
+                    val likeData = hashMapOf(
+                        "userId" to currentUser.uid,
+                        "postId" to postId,
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    batch.set(rootLikeRef, likeData)
+                    batch.set(postLikeRef, Like())
+                }
+            }.await()
+
             Resource.Success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -63,6 +89,7 @@ class ProfileRepositoryImpl @Inject constructor(
             Resource.Error(e.message ?: "Lỗi khi thích bài viết")
         }
     }
+
 
     override suspend fun refreshUserProfile(): Resource<Unit> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
@@ -77,6 +104,7 @@ class ProfileRepositoryImpl @Inject constructor(
                     name = userDto.name,
                     username = userDto.username,
                     email = userDto.email ?: "",
+                    phoneNumber = userDto.phoneNumber,
                     avatarUrl = userDto.avatarUrl,
                     bio = userDto.bio,
                     isVerified = userDto.isVerified,
@@ -170,7 +198,25 @@ class ProfileRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e("ProfileRepositoryImpl", "Error changing password", e)
-            Resource.Error(e.message ?: "Lỗi đổi mật khẩu")
+            val errorMessage = when (e) {
+                is FirebaseAuthInvalidCredentialsException -> "Mật khẩu hiện tại không đúng. Vui lòng thử lại."
+                is FirebaseNetworkException -> "Lỗi kết nối mạng. Vui lòng kiểm tra lại kết nối và thử lại."
+                else -> e.message ?: "Đã có lỗi xảy ra. Vui lòng thử lại sau."
+            }
+            Resource.Error(errorMessage)
+        }
+    }
+
+    override suspend fun updatePhoneNumber(newPhoneNumber: String): Resource<Unit> {
+        val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
+        return try {
+            usersCollection.document(currentUser.uid).update("phoneNumber", newPhoneNumber).await()
+            refreshUserProfile()
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("ProfileRepositoryImpl", "Error updating phone number", e)
+            Resource.Error(e.message ?: "Lỗi cập nhật số điện thoại")
         }
     }
 }

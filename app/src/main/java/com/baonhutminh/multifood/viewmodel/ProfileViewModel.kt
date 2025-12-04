@@ -91,19 +91,23 @@ class ProfileViewModel @Inject constructor(
             viewModelScope.launch { _eventChannel.send(ProfileUiEvent.ShowError("Tên không được để trống")) }
             return
         }
-        handleUpdate(
-            successMessage = "Cập nhật tên thành công",
-            errorMessage = "Không thể cập nhật tên",
-            updateAction = { profileRepository.updateName(newName) }
-        )
+        viewModelScope.launch {
+            handleUpdate(
+                successMessage = "Cập nhật tên thành công",
+                errorMessage = "Không thể cập nhật tên",
+                updateAction = { profileRepository.updateName(newName) }
+            )
+        }
     }
 
     fun updateBio(newBio: String) {
-        handleUpdate(
-            successMessage = "Cập nhật giới thiệu thành công",
-            errorMessage = "Không thể cập nhật giới thiệu",
-            updateAction = { profileRepository.updateBio(newBio) }
-        )
+        viewModelScope.launch {
+            handleUpdate(
+                successMessage = "Cập nhật giới thiệu thành công",
+                errorMessage = "Không thể cập nhật giới thiệu",
+                updateAction = { profileRepository.updateBio(newBio) }
+            )
+        }
     }
 
     fun updatePhoneNumber(newPhoneNumber: String) {
@@ -112,43 +116,64 @@ class ProfileViewModel @Inject constructor(
             viewModelScope.launch { _eventChannel.send(ProfileUiEvent.ShowError("Số điện thoại không hợp lệ")) }
             return
         }
-        handleUpdate(
-            successMessage = "Cập nhật số điện thoại thành công",
-            errorMessage = "Không thể cập nhật số điện thoại",
-            // Giả định bạn đã thêm hàm `updatePhoneNumber` vào ProfileRepository
-            updateAction = { profileRepository.updatePhoneNumber(newPhoneNumber) }
-        )
+        viewModelScope.launch {
+            handleUpdate(
+                successMessage = "Cập nhật số điện thoại thành công",
+                errorMessage = "Không thể cập nhật số điện thoại",
+                updateAction = { profileRepository.updatePhoneNumber(newPhoneNumber) }
+            )
+        }
     }
 
     fun uploadAvatar(imageUri: Uri) {
-        handleUpdate(
-            successMessage = "Cập nhật ảnh đại diện thành công",
-            errorMessage = "Không thể tải lên ảnh đại diện",
-            updateAction = { profileRepository.uploadAvatar(imageUri) }
-        )
+        viewModelScope.launch {
+            handleUpdate(
+                successMessage = "Cập nhật ảnh đại diện thành công",
+                errorMessage = "Không thể tải lên ảnh đại diện",
+                updateAction = { profileRepository.uploadAvatar(imageUri) }
+            )
+        }
     }
 
+    fun changePassword(currentPassword: String, newPassword: String, confirmNewPassword: String) {
+        viewModelScope.launch {
+            if (newPassword != confirmNewPassword) {
+                _eventChannel.send(ProfileUiEvent.ShowError("Mật khẩu mới không khớp."))
+                return@launch
+            }
+            if (newPassword.length < 6) {
+                _eventChannel.send(ProfileUiEvent.ShowError("Mật khẩu mới phải có ít nhất 6 ký tự."))
+                return@launch
+            }
+
+            handleUpdate(
+                successMessage = "Đổi mật khẩu thành công",
+                errorMessage = "Lỗi đổi mật khẩu",
+                updateAction = { profileRepository.changePassword(currentPassword, newPassword) }
+            )
+        }
+    }
+
+
     // Hàm private chung để xử lý logic update, loại bỏ hoàn toàn code lặp lại
-    private fun <T> handleUpdate(
+    private suspend fun <T> handleUpdate(
         successMessage: String,
         errorMessage: String,
         updateAction: suspend () -> Resource<T>
     ) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isUpdating = true) }
-
-            when (val result = updateAction()) {
-                is Resource.Success -> {
-                    _eventChannel.send(ProfileUiEvent.UpdateSuccess(successMessage))
-                }
-                is Resource.Error -> {
-                    _eventChannel.send(ProfileUiEvent.ShowError(result.message ?: errorMessage))
-                }
-                else -> { /* Trạng thái Loading không cần xử lý ở đây */ }
+        _uiState.update { it.copy(isUpdating = true) }
+        val result = updateAction()
+        when (result) {
+            is Resource.Success -> {
+                _eventChannel.send(ProfileUiEvent.UpdateSuccess(successMessage))
             }
-
-            _uiState.update { it.copy(isUpdating = false) }
+            is Resource.Error -> {
+                _eventChannel.send(ProfileUiEvent.ShowError(result.message ?: errorMessage))
+            }
+            else -> { /* Trạng thái Loading không cần xử lý ở đây */ }
         }
+
+        _uiState.update { it.copy(isUpdating = false) }
     }
 
     // Hàm clearMessages() không còn cần thiết nữa vì các thông báo đã được xử lý dưới dạng event

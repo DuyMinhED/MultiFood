@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.model.Comment
+import com.baonhutminh.multifood.data.model.PostImageEntity
+import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
@@ -13,15 +15,8 @@ import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Date
 import javax.inject.Inject
@@ -35,12 +30,22 @@ data class PostDetailUiState(
     val postWithAuthor: PostWithAuthor? = null,
     val comments: List<CommentWithAuthor> = emptyList(),
     val currentUser: UserProfile? = null,
+    val isLiked: Boolean = false,
     val isLoading: Boolean = true,
     val isDeleting: Boolean = false,
     val errorMessage: String? = null,
     val commentInput: String = "",
     val isAddingComment: Boolean = false,
     val images: List<String> = emptyList() // URLs của images
+)
+
+private data class PostDetailIntermediateState(
+    val postWithAuthor: PostWithAuthor? = null,
+    val comments: List<CommentWithAuthor> = emptyList(),
+    val currentUser: UserProfile? = null,
+    val isLiked: Boolean = false,
+    val isLoading: Boolean = true,
+    val images: List<String> = emptyList()
 )
 
 private data class ViewModelState(
@@ -55,32 +60,46 @@ class PostDetailViewModel @Inject constructor(
     private val postRepository: PostRepository,
     private val commentRepository: CommentRepository,
     private val profileRepository: ProfileRepository,
-    private val postImageDao: PostImageDao,
+    postImageDao: PostImageDao,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val postId: String = savedStateHandle.get<String>("postId")!!
-    private val _viewModel_state = MutableStateFlow(ViewModelState())
+    private val viewModelState = MutableStateFlow(ViewModelState())
     private val _events = MutableSharedFlow<PostDetailEvent>()
     val events = _events.asSharedFlow()
 
+    private val likedPostsFlow = profileRepository.getLikedPostsForCurrentUser()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<PostDetailUiState> = combine(
         postRepository.getPostById(postId),
         commentRepository.getCommentsForPost(postId),
         profileRepository.getUserProfile(),
-        postImageDao.getImagesForPost(postId),
-        _viewModel_state
-    ) { postRes, commentsRes, userRes, images, vmState ->
-        PostDetailUiState(
+        postImageDao.getImagesForPost(postId).mapLatest { it ?: emptyList() },
+        likedPostsFlow
+    ) { postRes, commentsRes, userRes, images, likedPosts ->
+        val isLiked = likedPosts.any { it.postId == postId }
+        PostDetailIntermediateState(
             postWithAuthor = (postRes as? Resource.Success)?.data,
             comments = (commentsRes as? Resource.Success)?.data ?: emptyList(),
             currentUser = (userRes as? Resource.Success)?.data,
+            isLiked = isLiked,
             isLoading = (postRes as? Resource.Success)?.data == null,
+            images = images.map { it.url }
+        )
+    }.combine(viewModelState) { intermediateState, vmState ->
+        PostDetailUiState(
+            postWithAuthor = intermediateState.postWithAuthor,
+            comments = intermediateState.comments,
+            currentUser = intermediateState.currentUser,
+            isLiked = intermediateState.isLiked,
+            isLoading = intermediateState.isLoading,
+            images = intermediateState.images,
             isDeleting = vmState.isDeleting,
             commentInput = vmState.commentInput,
             isAddingComment = vmState.isAddingComment,
-            errorMessage = vmState.errorMessage,
-            images = images.map { it.url }
+            errorMessage = vmState.errorMessage
         )
     }.stateIn(
         scope = viewModelScope,
@@ -89,10 +108,6 @@ class PostDetailViewModel @Inject constructor(
     )
 
     init {
-        refreshData()
-    }
-
-    fun refreshData() {
         viewModelScope.launch {
             postRepository.refreshAllPosts()
             commentRepository.refreshCommentsForPost(postId)
@@ -100,22 +115,22 @@ class PostDetailViewModel @Inject constructor(
     }
 
     fun onCommentInputChange(text: String) {
-        _viewModel_state.update { it.copy(commentInput = text) }
+        viewModelState.update { it.copy(commentInput = text) }
     }
 
     fun addComment() {
-        if (_viewModel_state.value.isAddingComment || _viewModel_state.value.commentInput.isBlank()) return
+        if (viewModelState.value.isAddingComment || viewModelState.value.commentInput.isBlank()) return
 
         viewModelScope.launch {
-            _viewModel_state.update { it.copy(isAddingComment = true, errorMessage = null) }
+            viewModelState.update { it.copy(isAddingComment = true, errorMessage = null) }
             val user = profileRepository.getUserProfile().first().data
             if (user == null) {
-                _viewModel_state.update { it.copy(isAddingComment = false, errorMessage = "Vui lòng đăng nhập để bình luận") }
+                viewModelState.update { it.copy(isAddingComment = false, errorMessage = "Vui lòng đăng nhập để bình luận") }
                 return@launch
             }
 
-            val commentText = _viewModel_state.value.commentInput
-            _viewModel_state.update { it.copy(commentInput = "") }
+            val commentText = viewModelState.value.commentInput
+            viewModelState.update { it.copy(commentInput = "") }
 
             val newComment = Comment(
                 postId = postId,
@@ -127,16 +142,13 @@ class PostDetailViewModel @Inject constructor(
             val result = commentRepository.createComment(newComment, user.id)
 
             if (result is Resource.Success) {
-                val refreshResult = commentRepository.refreshCommentsForPost(postId)
-                if (refreshResult is Resource.Error) {
-                    _viewModel_state.update { it.copy(errorMessage = "Đã gửi bình luận, nhưng không thể làm mới danh sách.") }
-                }
+                commentRepository.refreshCommentsForPost(postId)
             } else if (result is Resource.Error) {
-                _viewModel_state.update {
+                viewModelState.update {
                     it.copy(commentInput = commentText, errorMessage = result.message)
                 }
             }
-            _viewModel_state.update { it.copy(isAddingComment = false) }
+            viewModelState.update { it.copy(isAddingComment = false) }
         }
     }
 
@@ -144,41 +156,30 @@ class PostDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val postToDelete = uiState.value.postWithAuthor?.post ?: return@launch
             if (postToDelete.userId != uiState.value.currentUser?.id) {
-                _viewModel_state.update { it.copy(errorMessage = "Bạn không có quyền xóa bài viết này") }
+                viewModelState.update { it.copy(errorMessage = "Bạn không có quyền xóa bài viết này") }
                 return@launch
             }
 
-            _viewModel_state.update { it.copy(isDeleting = true, errorMessage = null) }
+            viewModelState.update { it.copy(isDeleting = true, errorMessage = null) }
 
             val result = postRepository.deletePost(postToDelete.id)
 
             if (result is Resource.Success) {
-                postRepository.refreshAllPosts()
-                profileRepository.refreshUserProfile()
                 _events.emit(PostDetailEvent.NavigateToHome)
             } else {
-                _viewModel_state.update { it.copy(errorMessage = result.message ?: "Lỗi xóa bài viết") }
+                viewModelState.update { it.copy(errorMessage = result.message ?: "Lỗi xóa bài viết") }
             }
-            _viewModel_state.update { it.copy(isDeleting = false) }
+            viewModelState.update { it.copy(isDeleting = false) }
         }
     }
 
     fun toggleLike() {
         viewModelScope.launch {
-            val post = uiState.value.postWithAuthor?.post ?: return@launch
-            val isLiked = profileRepository.getLikedPostsForCurrentUser()
-                .first()
-                .any { it.postId == post.id }
-            
-            val result = profileRepository.toggleLike(post.id, isLiked)
-            // Refresh post để cập nhật likeCount từ Firestore (Cloud Functions đã cập nhật)
-            if (result is Resource.Success) {
-                postRepository.refreshAllPosts()
-            }
+            profileRepository.toggleLike(postId, uiState.value.isLiked)
         }
     }
 
     fun clearErrorMessage() {
-        _viewModel_state.update { it.copy(errorMessage = null) }
+        viewModelState.update { it.copy(errorMessage = null) }
     }
 }
