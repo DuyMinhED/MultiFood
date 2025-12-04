@@ -36,6 +36,9 @@ data class PostDetailUiState(
     val errorMessage: String? = null,
     val commentInput: String = "",
     val isAddingComment: Boolean = false,
+    val editingCommentId: String? = null,
+    val editingCommentText: String = "",
+    val isUpdatingComment: Boolean = false,
     val images: List<String> = emptyList() // URLs của images
 )
 
@@ -52,6 +55,9 @@ private data class ViewModelState(
     val commentInput: String = "",
     val isAddingComment: Boolean = false,
     val isDeleting: Boolean = false,
+    val editingCommentId: String? = null,
+    val editingCommentText: String = "",
+    val isUpdatingComment: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -99,6 +105,9 @@ class PostDetailViewModel @Inject constructor(
             isDeleting = vmState.isDeleting,
             commentInput = vmState.commentInput,
             isAddingComment = vmState.isAddingComment,
+            editingCommentId = vmState.editingCommentId,
+            editingCommentText = vmState.editingCommentText,
+            isUpdatingComment = vmState.isUpdatingComment,
             errorMessage = vmState.errorMessage
         )
     }.stateIn(
@@ -109,7 +118,8 @@ class PostDetailViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            postRepository.refreshAllPosts()
+            // Chỉ refresh post hiện tại thay vì tất cả posts để tăng tốc độ
+            postRepository.refreshPost(postId)
             commentRepository.refreshCommentsForPost(postId)
         }
     }
@@ -188,5 +198,77 @@ class PostDetailViewModel @Inject constructor(
 
     fun clearErrorMessage() {
         viewModelState.update { it.copy(errorMessage = null) }
+    }
+
+    fun startEditingComment(commentId: String, currentText: String) {
+        viewModelState.update {
+            it.copy(editingCommentId = commentId, editingCommentText = currentText)
+        }
+    }
+
+    fun cancelEditingComment() {
+        viewModelState.update {
+            it.copy(editingCommentId = null, editingCommentText = "")
+        }
+    }
+
+    fun onEditingCommentTextChange(text: String) {
+        viewModelState.update { it.copy(editingCommentText = text) }
+    }
+
+    fun updateComment() {
+        val commentId = viewModelState.value.editingCommentId ?: return
+        val commentText = viewModelState.value.editingCommentText.trim()
+        
+        if (commentText.isBlank() || viewModelState.value.isUpdatingComment) return
+
+        viewModelScope.launch {
+            viewModelState.update { it.copy(isUpdatingComment = true, errorMessage = null) }
+            
+            val comment = uiState.value.comments.find { it.comment.id == commentId }?.comment
+            if (comment == null) {
+                viewModelState.update { it.copy(isUpdatingComment = false, errorMessage = "Không tìm thấy bình luận") }
+                return@launch
+            }
+
+            val updatedComment = comment.copy(
+                content = commentText,
+                updatedAt = Date()
+            )
+
+            val result = commentRepository.updateComment(updatedComment)
+
+            if (result is Resource.Success) {
+                commentRepository.refreshCommentsForPost(postId)
+                viewModelState.update {
+                    it.copy(
+                        editingCommentId = null,
+                        editingCommentText = "",
+                        isUpdatingComment = false
+                    )
+                }
+            } else if (result is Resource.Error) {
+                viewModelState.update {
+                    it.copy(
+                        isUpdatingComment = false,
+                        errorMessage = result.message ?: "Lỗi cập nhật bình luận"
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteComment(commentId: String) {
+        viewModelScope.launch {
+            val result = commentRepository.deleteComment(commentId, postId)
+            
+            if (result is Resource.Success) {
+                commentRepository.refreshCommentsForPost(postId)
+            } else if (result is Resource.Error) {
+                viewModelState.update {
+                    it.copy(errorMessage = result.message ?: "Lỗi xóa bình luận")
+                }
+            }
+        }
     }
 }

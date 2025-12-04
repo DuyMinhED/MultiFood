@@ -49,4 +49,35 @@ class CommentRepositoryImpl @Inject constructor(
             Resource.Error(e.message ?: "Lỗi tạo bình luận")
         }
     }
+
+    override suspend fun updateComment(comment: Comment): Resource<Unit> {
+        return try {
+            firestore.collection("posts").document(comment.postId)
+                .collection("comments").document(comment.id)
+                .set(comment)
+                .await()
+            commentDao.upsertAll(listOf(comment))
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("CommentRepositoryImpl", "Error updating comment", e)
+            Resource.Error(e.message ?: "Lỗi cập nhật bình luận")
+        }
+    }
+
+    override suspend fun deleteComment(commentId: String, postId: String): Resource<Unit> {
+        return try {
+            firestore.collection("posts").document(postId)
+                .collection("comments").document(commentId)
+                .delete()
+                .await()
+            commentDao.delete(commentId)
+            // Logic cập nhật commentCount sẽ do Cloud Function xử lý
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("CommentRepositoryImpl", "Error deleting comment", e)
+            Resource.Error(e.message ?: "Lỗi xóa bình luận")
+        }
+    }
 }
