@@ -13,12 +13,15 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.baonhutminh.multifood.data.model.AppTheme
@@ -175,28 +178,18 @@ fun SettingsScreen(
     }
 
     if (showTermsDialog) {
-        AlertDialog(
-            onDismissRequest = { showTermsDialog = false },
-            title = { Text("Điều khoản sử dụng") },
-            text = { /* ... Nội dung điều khoản ... */ },
-            confirmButton = {
-                TextButton(onClick = { showTermsDialog = false }) {
-                    Text("Đóng")
-                }
-            }
+        PolicyContentDialog(
+            title = "Điều khoản sử dụng",
+            content = TERMS_OF_SERVICE_CONTENT,
+            onDismiss = { showTermsDialog = false }
         )
     }
 
     if (showPrivacyDialog) {
-        AlertDialog(
-            onDismissRequest = { showPrivacyDialog = false },
-            title = { Text("Chính sách bảo mật") },
-            text = { /* ... Nội dung chính sách ... */ },
-            confirmButton = {
-                TextButton(onClick = { showPrivacyDialog = false }) {
-                    Text("Đóng")
-                }
-            }
+        PolicyContentDialog(
+            title = "Chính sách bảo mật",
+            content = PRIVACY_POLICY_CONTENT,
+            onDismiss = { showPrivacyDialog = false }
         )
     }
 }
@@ -212,7 +205,6 @@ private fun SettingsHeader(title: String) {
     )
 }
 
-// ... Các SettingsItem composables khác giữ nguyên ...
 @Composable
 private fun SettingsItem(
     icon: ImageVector,
@@ -407,11 +399,155 @@ private fun ChangePasswordDialog(
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
+    var isCurrentPasswordVisible by remember { mutableStateOf(false) }
+    var isNewPasswordVisible by remember { mutableStateOf(false) }
+    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
+
+    val isConfirmEnabled = currentPassword.isNotBlank() && newPassword.isNotBlank() && confirmPassword.isNotBlank()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Đổi mật khẩu") },
-        text = { /* ... */ },
-        confirmButton = { /* ... */ },
-        dismissButton = { /* ... */ }
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Mật khẩu hiện tại
+                OutlinedTextField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it },
+                    label = { Text("Mật khẩu hiện tại") },
+                    singleLine = true,
+                    visualTransformation = if (isCurrentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val image = if (isCurrentPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
+                        IconButton(onClick = { isCurrentPasswordVisible = !isCurrentPasswordVisible }) {
+                            Icon(imageVector = image, contentDescription = if (isCurrentPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
+                        }
+                    }
+                )
+
+                // Mật khẩu mới
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("Mật khẩu mới") },
+                    singleLine = true,
+                    visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val image = if (isNewPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
+                        IconButton(onClick = { isNewPasswordVisible = !isNewPasswordVisible }) {
+                            Icon(imageVector = image, contentDescription = if (isNewPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
+                        }
+                    }
+                )
+
+                // Xác nhận mật khẩu mới
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = { Text("Xác nhận mật khẩu mới") },
+                    singleLine = true,
+                    visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val image = if (isConfirmPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
+                        IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                            Icon(imageVector = image, contentDescription = if (isConfirmPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu")
+                        }
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(currentPassword, newPassword, confirmPassword)
+                    onDismiss()
+                },
+                enabled = isConfirmEnabled
+            ) {
+                Text("Xác nhận")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Hủy")
+            }
+        }
     )
 }
+
+@Composable
+private fun PolicyContentDialog(
+    title: String,
+    content: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = content,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Đóng")
+            }
+        }
+    )
+}
+
+private const val TERMS_OF_SERVICE_CONTENT = """
+Cập nhật lần cuối: 02/12/2025
+
+Chào mừng bạn đến với MultiFood!
+
+Bằng cách truy cập hoặc sử dụng ứng dụng của chúng tôi, bạn đồng ý tuân thủ các điều khoản và điều kiện này.
+
+1. Sử dụng Ứng dụng
+- Bạn phải đủ 13 tuổi để sử dụng ứng dụng này.
+- Bạn chịu trách nhiệm về mọi hoạt động diễn ra dưới tài khoản của mình.
+
+2. Nội dung Người dùng
+- Bạn cấp cho chúng tôi giấy phép không độc quyền, trên toàn thế giới để sử dụng, lưu trữ, hiển thị, tái sản xuất nội dung bạn đăng tải.
+- Bạn không được đăng tải nội dung bất hợp pháp, xúc phạm hoặc vi phạm quyền của người khác.
+
+3. Chấm dứt
+- Chúng tôi có thể chấm dứt hoặc tạm ngưng quyền truy cập vào ứng dụng của chúng tôi ngay lập tức, không cần thông báo trước, vì bất kỳ lý do gì, bao gồm cả việc bạn vi phạm Điều khoản.
+
+4. Giới hạn Trách nhiệm
+- Ứng dụng được cung cấp "nguyên trạng". Chúng tôi không đưa ra bất kỳ bảo đảm nào về tính chính xác hoặc độ tin cậy của dịch vụ.
+
+5. Thay đổi Điều khoản
+- Chúng tôi có quyền sửa đổi các điều khoản này bất kỳ lúc nào. Chúng tôi sẽ thông báo cho bạn về bất kỳ thay đổi nào bằng cách đăng các điều khoản mới trên trang này.
+"""
+
+private const val PRIVACY_POLICY_CONTENT = """
+Cập nhật lần cuối: 02/12/2025
+
+MultiFood tôn trọng quyền riêng tư của bạn.
+
+1. Thông tin chúng tôi thu thập
+- Thông tin Cá nhân: Tên, địa chỉ email, mật khẩu (được mã hóa) khi bạn đăng ký.
+- Dữ liệu Sử dụng: Thông tin về cách bạn tương tác với ứng dụng, chẳng hạn như các tính năng được sử dụng và thời gian dành cho ứng dụng.
+
+2. Cách chúng tôi sử dụng thông tin
+- Để cung cấp và duy trì Dịch vụ.
+- Để thông báo cho bạn về những thay đổi đối với Dịch vụ của chúng tôi.
+- Để cung cấp hỗ trợ khách hàng.
+- Để thu thập phân tích hoặc thông tin có giá trị để chúng tôi có thể cải thiện Dịch vụ.
+
+3. Bảo mật Dữ liệu
+- An toàn dữ liệu của bạn rất quan trọng đối với chúng tôi. Chúng tôi sử dụng các biện pháp bảo mật hợp lý về mặt thương mại để bảo vệ thông tin cá nhân của bạn nhưng hãy nhớ rằng không có phương thức truyền qua Internet hoặc phương pháp lưu trữ điện tử nào là an toàn 100%.
+
+4. Liên kết đến các trang web khác
+- Dịch vụ của chúng tôi có thể chứa các liên kết đến các trang web khác không do chúng tôi điều hành. Nếu bạn nhấp vào một liên kết của bên thứ ba, bạn sẽ được chuyển đến trang web của bên thứ ba đó.
+
+5. Quyền riêng tư của trẻ em
+- Dịch vụ của chúng tôi không dành cho bất kỳ ai dưới 13 tuổi.
+"""
