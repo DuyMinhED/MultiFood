@@ -44,6 +44,9 @@ interface PostDao {
     @Query("DELETE FROM posts WHERE id = :postId")
     suspend fun delete(postId: String)
 
+    @Query("UPDATE posts SET likeCount = likeCount + :delta WHERE id = :postId")
+    suspend fun updateLikeCount(postId: String, delta: Int)
+
     @Query("DELETE FROM posts")
     suspend fun clearAll()
 

@@ -2,6 +2,7 @@ package com.baonhutminh.multifood.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.baonhutminh.multifood.data.local.PostDao
 import com.baonhutminh.multifood.data.local.PostImageDao
 import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.UserProfile
@@ -43,7 +44,8 @@ private data class HomeIntermediateState(
 class HomeViewModel @Inject constructor(
     private val postRepository: PostRepository,
     private val profileRepository: ProfileRepository,
-    private val postImageDao: PostImageDao
+    private val postImageDao: PostImageDao,
+    private val postDao: PostDao
 ) : ViewModel() {
 
     private val _selectedTab = MutableStateFlow(PostFilterTab.ALL)
@@ -157,7 +159,17 @@ class HomeViewModel @Inject constructor(
     fun toggleLike(postId: String) {
         viewModelScope.launch {
             val isLiked = uiState.value.likedPosts.any { it.postId == postId }
-            profileRepository.toggleLike(postId, isLiked)
+            when (val result = profileRepository.toggleLike(postId, isLiked)) {
+                is Resource.Success -> {
+                    val delta = if (isLiked) -1 else 1
+                    postDao.updateLikeCount(postId, delta)
+                }
+                is Resource.Error -> {
+                    _errorMessage.value = result.message ?: "Không thể cập nhật trạng thái yêu thích"
+                }
+
+                is Resource.Loading<*> -> TODO()
+            }
         }
     }
 

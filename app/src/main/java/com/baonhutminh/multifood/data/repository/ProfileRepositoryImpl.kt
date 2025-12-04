@@ -2,6 +2,7 @@ package com.baonhutminh.multifood.data.repository
 
 import android.net.Uri
 import android.util.Log
+import com.baonhutminh.multifood.data.local.PostLikeDao
 import com.baonhutminh.multifood.data.local.UserDao
 import com.baonhutminh.multifood.data.model.Like
 import com.baonhutminh.multifood.data.model.PostLikeEntity
@@ -18,7 +19,10 @@ import com.google.firebase.firestore.ktx.snapshots
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.CancellationException
 import javax.inject.Inject
@@ -27,7 +31,8 @@ class ProfileRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     private val storage: FirebaseStorage,
-    private val userDao: UserDao
+    private val userDao: UserDao,
+    private val postLikeDao: PostLikeDao
 ) : ProfileRepository {
 
     private val usersCollection = firestore.collection("users")
@@ -43,19 +48,27 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override fun getLikedPostsForCurrentUser(): Flow<List<PostLikeEntity>> {
         val currentUserId = auth.currentUser?.uid ?: return kotlinx.coroutines.flow.flowOf(emptyList())
-        return likesCollection.whereEqualTo("userId", currentUserId).snapshots().map { snapshot ->
-            snapshot.documents.mapNotNull { doc ->
-                val postId = doc.getString("postId")
-                if (postId != null) {
-                    PostLikeEntity(postId = postId, userId = currentUserId)
-                } else {
-                    null
+        return likesCollection.whereEqualTo("userId", currentUserId)
+            .snapshots()
+            .flatMapLatest { snapshot ->
+                val likes = snapshot.documents.mapNotNull { doc ->
+                    doc.getString("postId")?.let { postId ->
+                        PostLikeEntity(postId = postId, userId = currentUserId)
+                    }
                 }
+                postLikeDao.clearAllForUser(currentUserId)
+                if (likes.isNotEmpty()) {
+                    postLikeDao.insertAll(likes)
+                }
+                postLikeDao.getLikedPosts(currentUserId)
             }
-        }.catch { e ->
-            Log.e("ProfileRepositoryImpl", "Error getting liked posts", e)
-            emit(emptyList()) // Emit an empty list on error to prevent crash
-        }
+            .onStart {
+                emitAll(postLikeDao.getLikedPosts(currentUserId))
+            }
+            .catch { e ->
+                Log.e("ProfileRepositoryImpl", "Error getting liked posts", e)
+                emitAll(postLikeDao.getLikedPosts(currentUserId))
+            }
     }
 
     override suspend fun toggleLike(postId: String, isCurrentlyLiked: Boolean): Resource<Unit> {
@@ -81,6 +94,12 @@ class ProfileRepositoryImpl @Inject constructor(
                     batch.set(postLikeRef, Like())
                 }
             }.await()
+
+            if (isCurrentlyLiked) {
+                postLikeDao.delete(postId, currentUser.uid)
+            } else {
+                postLikeDao.insert(PostLikeEntity(postId = postId, userId = currentUser.uid))
+            }
 
             Resource.Success(Unit)
         } catch (e: Exception) {

@@ -82,6 +82,21 @@ service cloud.firestore {
         allow update, delete: if request.auth.uid == resource.data.userId;
       }
     }
+
+    // ============================================
+    // ROOT LIKES COLLECTION (used for quick lookups)
+    // ============================================
+    match /likes/{likeId} {
+      // Người dùng chỉ đọc được những like của chính mình
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+
+      // Chỉ chủ sở hữu mới tạo hoặc xóa được bản ghi like của mình
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+
+      // Không cho phép update để tránh sửa dữ liệu tùy ý
+      allow update: if false;
+    }
   }
 }
 
