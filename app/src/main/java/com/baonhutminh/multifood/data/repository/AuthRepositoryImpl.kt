@@ -3,6 +3,7 @@ package com.baonhutminh.multifood.data.repository
 import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -42,6 +43,32 @@ class AuthRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             e.printStackTrace()
             Resource.Error(e.message ?: "Lỗi đăng ký không xác định")
+        }
+    }
+
+    override suspend fun signInWithGoogle(idToken: String): Resource<String> {
+        return try {
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            val result = firebaseAuth.signInWithCredential(credential).await()
+            val user = result.user ?: return Resource.Error("Không lấy được thông tin người dùng")
+            
+            // Kiểm tra xem user đã tồn tại trong Firestore chưa
+            val userDoc = firestore.collection("users").document(user.uid).get().await()
+            
+            if (!userDoc.exists()) {
+                // Tạo User mới trong Firestore
+                val newUser = User(
+                    id = user.uid,
+                    name = user.displayName ?: "Người dùng Google",
+                    email = user.email,
+                    avatarUrl = user.photoUrl?.toString() ?: "https://i.imgur.com/6VBx3io.png"
+                )
+                firestore.collection("users").document(user.uid).set(newUser).await()
+            }
+            
+            Resource.Success(user.uid)
+        } catch (e: Exception) {
+            Resource.Error(e.message ?: "Lỗi đăng nhập Google")
         }
     }
 
