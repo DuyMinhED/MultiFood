@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.model.AppTheme
 import com.baonhutminh.multifood.data.preferences.SettingsPreferences
+import com.baonhutminh.multifood.data.repository.AuthRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
-import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +25,7 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val settingsPreferences: SettingsPreferences,
     private val profileRepository: ProfileRepository,
-    private val firebaseAuth: FirebaseAuth
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     // 2. Kết hợp các Flow từ Preferences thành một StateFlow<SettingsUiState> duy nhất
@@ -64,7 +64,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun logout() {
-        firebaseAuth.signOut()
+        // Gọi signOut qua AuthRepository để đảm bảo Google Sign-In cũng được sign out
+        authRepository.signOut()
         // Việc điều hướng sẽ được xử lý bởi AppNavigation hoặc Activity
     }
 

@@ -25,4 +25,8 @@ interface ProfileRepository {
     suspend fun changePassword(currentPassword: String, newPassword: String): Resource<Unit>
 
     suspend fun updatePhoneNumber(newPhoneNumber: String): Resource<Unit>
+    
+    fun getCurrentUserProviders(): List<String>
+    suspend fun linkGoogleAccount(idToken: String): Resource<Unit>
+    suspend fun linkEmailPassword(email: String, password: String): Resource<Unit>
 }

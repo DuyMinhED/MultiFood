@@ -1,8 +1,11 @@
 package com.baonhutminh.multifood.ui.screens
 
+import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -41,6 +44,10 @@ import com.baonhutminh.multifood.ui.components.AppTopBar
 import com.baonhutminh.multifood.ui.navigation.Screen
 import com.baonhutminh.multifood.viewmodel.ProfileUiEvent
 import com.baonhutminh.multifood.viewmodel.ProfileViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,18 +68,58 @@ fun ProfileScreen(
     var showEditBioDialog by remember { mutableStateOf(false) }
     var showEditPhoneDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var showLinkGoogleDialog by remember { mutableStateOf(false) }
+    var showLinkEmailPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var currentPasswordError by remember { mutableStateOf<String?>(null) }
+    
+    val hasPasswordProvider = viewModel.hasPasswordProvider()
+    val hasGoogleProvider = viewModel.hasGoogleProvider()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { viewModel.uploadAvatar(it) }
+    }
+    
+    // Google Sign-In for linking account
+    val googleSignInClient = remember {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken("1051570676237-n8mtu8j191pbt17me07q3pcrajnt58pc.apps.googleusercontent.com")
+            .requestEmail()
+            .build()
+        GoogleSignIn.getClient(context, gso)
+    }
+    
+    val googleLinkLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            account?.idToken?.let { idToken ->
+                viewModel.linkGoogleAccount(idToken)
+            } ?: run {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Không thể lấy ID token từ Google")
+                }
+            }
+        } catch (e: ApiException) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Lỗi liên kết Google: ${e.message}")
+            }
+        }
+    }
+    
+    fun linkGoogleAccount() {
+        val signInIntent = googleSignInClient.signInIntent
+        googleLinkLauncher.launch(signInIntent)
     }
 
     LaunchedEffect(key1 = true) {
@@ -87,6 +134,10 @@ fun ProfileScreen(
                     if (event.message.contains("tên")) showEditNameDialog = false
                     if (event.message.contains("giới thiệu")) showEditBioDialog = false
                     if (event.message.contains("số điện thoại")) showEditPhoneDialog = false
+                    if (event.message.contains("liên kết")) {
+                        showLinkGoogleDialog = false
+                        showLinkEmailPasswordDialog = false
+                    }
                 }
                 is ProfileUiEvent.ShowError -> {
                     if (showChangePasswordDialog && event.message.contains("Mật khẩu hiện tại không đúng")) {
@@ -340,13 +391,67 @@ fun ProfileScreen(
                                 subtitle = "Tùy chỉnh ứng dụng",
                                 onClick = onNavigateToSettings
                             )
+                            // Chỉ hiển thị "Đổi mật khẩu" nếu có password provider
+                            if (hasPasswordProvider) {
+                                HorizontalDivider()
+                                ProfileMenuItem(
+                                    icon = Icons.Default.Lock,
+                                    title = "Đổi mật khẩu",
+                                    subtitle = "Bảo mật tài khoản của bạn",
+                                    onClick = { showChangePasswordDialog = true }
+                                )
+                            }
+                            
+                            // Hiển thị phần liên kết tài khoản
                             HorizontalDivider()
-                            ProfileMenuItem(
-                                icon = Icons.Default.Lock,
-                                title = "Đổi mật khẩu",
-                                subtitle = "Bảo mật tài khoản của bạn",
-                                onClick = { showChangePasswordDialog = true }
+                            Text(
+                                text = "Liên kết tài khoản",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
+                            
+                            // Liên kết Google nếu chưa có
+                            if (!hasGoogleProvider) {
+                                ProfileMenuItem(
+                                    icon = Icons.Default.AccountCircle,
+                                    title = "Liên kết Google",
+                                    subtitle = "Đăng nhập bằng tài khoản Google",
+                                    onClick = { showLinkGoogleDialog = true }
+                                )
+                                HorizontalDivider()
+                            } else {
+                                ProfileMenuItem(
+                                    icon = Icons.Default.CheckCircle,
+                                    title = "Đã liên kết Google",
+                                    subtitle = "Tài khoản Google đã được liên kết",
+                                    onClick = { },
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                HorizontalDivider()
+                            }
+                            
+                            // Liên kết Email/Password nếu chưa có
+                            if (!hasPasswordProvider) {
+                                ProfileMenuItem(
+                                    icon = Icons.Default.Email,
+                                    title = "Liên kết Email/Password",
+                                    subtitle = "Thêm mật khẩu để đăng nhập",
+                                    onClick = { showLinkEmailPasswordDialog = true }
+                                )
+                                HorizontalDivider()
+                            } else {
+                                ProfileMenuItem(
+                                    icon = Icons.Default.CheckCircle,
+                                    title = "Đã liên kết Email/Password",
+                                    subtitle = "Tài khoản email đã được liên kết",
+                                    onClick = { },
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                HorizontalDivider()
+                            }
+                            
                             HorizontalDivider()
                             ProfileMenuItem(
                                 icon = Icons.AutoMirrored.Filled.Help,
@@ -432,6 +537,61 @@ fun ProfileScreen(
                 viewModel.changePassword(current, new, confirm)
             }
         )
+    }
+    
+    if (showLinkGoogleDialog) {
+        AlertDialog(
+            onDismissRequest = { showLinkGoogleDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = { 
+                Text(
+                    "Liên kết tài khoản Google",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Bạn sẽ được chuyển đến trang đăng nhập Google để liên kết tài khoản.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLinkGoogleDialog = false
+                        linkGoogleAccount()
+                    }
+                ) {
+                    Text("Tiếp tục", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLinkGoogleDialog = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
+    
+    if (showLinkEmailPasswordDialog) {
+        userProfile?.let { profile ->
+            LinkEmailPasswordDialog(
+                currentEmail = profile.email,
+                onDismiss = { showLinkEmailPasswordDialog = false },
+                onConfirm = { email, password ->
+                    viewModel.linkEmailPassword(email, password)
+                },
+                isLoading = isUpdating
+            )
+        }
     }
 
     if (showLogoutDialog) {
@@ -586,6 +746,124 @@ private fun EditTextDialog(
         },
         confirmButton = { TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) { Text("Lưu", fontWeight = FontWeight.Bold) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } }
+    )
+}
+
+@Composable
+private fun LinkEmailPasswordDialog(
+    currentEmail: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit,
+    isLoading: Boolean
+) {
+    var email by remember { mutableStateOf(currentEmail) }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var confirmPasswordError by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Email,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+        },
+        title = {
+            Text(
+                "Liên kết Email/Password",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        emailError = null
+                    },
+                    label = { Text("Email") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false, // Disable vì email phải trùng với email hiện tại
+                    isError = emailError != null,
+                    supportingText = emailError?.let { { Text(it) } } ?: { Text("Email phải trùng với email của tài khoản hiện tại") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        passwordError = null
+                    },
+                    label = { Text("Mật khẩu") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    enabled = !isLoading,
+                    isError = passwordError != null,
+                    supportingText = passwordError?.let { { Text(it) } }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = {
+                        confirmPassword = it
+                        confirmPasswordError = null
+                    },
+                    label = { Text("Xác nhận mật khẩu") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    enabled = !isLoading,
+                    isError = confirmPasswordError != null,
+                    supportingText = confirmPasswordError?.let { { Text(it) } }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    var valid = true
+                    if (email.isBlank()) {
+                        emailError = "Vui lòng nhập email"
+                        valid = false
+                    }
+                    if (password.isBlank()) {
+                        passwordError = "Vui lòng nhập mật khẩu"
+                        valid = false
+                    } else if (password.length < 6) {
+                        passwordError = "Mật khẩu phải có ít nhất 6 ký tự"
+                        valid = false
+                    }
+                    if (confirmPassword.isBlank()) {
+                        confirmPasswordError = "Vui lòng xác nhận mật khẩu"
+                        valid = false
+                    } else if (password != confirmPassword) {
+                        confirmPasswordError = "Mật khẩu không khớp"
+                        valid = false
+                    }
+                    if (valid) {
+                        onConfirm(email, password)
+                    }
+                },
+                enabled = !isLoading
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                } else {
+                    Text("Liên kết", fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
+                Text("Hủy")
+            }
+        }
     )
 }
 

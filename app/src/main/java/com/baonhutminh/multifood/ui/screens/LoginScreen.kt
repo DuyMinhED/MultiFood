@@ -45,6 +45,7 @@ fun LoginScreen(
     // Google Sign-In
     // Lưu ý: Cần lấy Web Client ID từ Firebase Console > Project Settings > Your apps > Web app
     // và thay thế "YOUR_WEB_CLIENT_ID" bên dưới
+    // Sử dụng setFilterByAuthorizedAccounts(false) để cho phép chọn account khác
     val googleSignInClient = remember {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken("1051570676237-n8mtu8j191pbt17me07q3pcrajnt58pc.apps.googleusercontent.com") // Cần thay bằng Web Client ID từ Firebase Console

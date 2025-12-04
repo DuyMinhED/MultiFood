@@ -22,7 +22,8 @@ import javax.inject.Inject
 data class ProfileUiState(
     val userProfile: UserProfile? = null,
     val isLoading: Boolean = false, // Chỉ dùng cho lần tải dữ liệu đầu tiên
-    val isUpdating: Boolean = false // Dùng cho tất cả các hoạt động cập nhật (tên, bio, avatar, sđt)
+    val isUpdating: Boolean = false, // Dùng cho tất cả các hoạt động cập nhật (tên, bio, avatar, sđt)
+    val providers: List<String> = emptyList() // Danh sách providers (password, google.com, etc.)
 )
 
 // Sealed class cho các sự kiện chỉ xảy ra một lần (side-effects) như Toast, Snackbar
@@ -49,6 +50,13 @@ class ProfileViewModel @Inject constructor(
         observeUserProfile()
         // Kích hoạt làm mới dữ liệu từ server ngay khi ViewModel được tạo
         refreshProfile(isInitialLoad = true)
+        // Load providers
+        loadProviders()
+    }
+    
+    private fun loadProviders() {
+        val providers = profileRepository.getCurrentUserProviders()
+        _uiState.update { it.copy(providers = providers) }
     }
 
     private fun observeUserProfile() {
@@ -174,6 +182,50 @@ class ProfileViewModel @Inject constructor(
         }
 
         _uiState.update { it.copy(isUpdating = false) }
+    }
+
+    fun linkGoogleAccount(idToken: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUpdating = true) }
+            val result = profileRepository.linkGoogleAccount(idToken)
+            when (result) {
+                is Resource.Success -> {
+                    _eventChannel.send(ProfileUiEvent.UpdateSuccess("Liên kết tài khoản Google thành công"))
+                    loadProviders() // Reload providers sau khi liên kết thành công
+                }
+                is Resource.Error -> {
+                    _eventChannel.send(ProfileUiEvent.ShowError(result.message ?: "Lỗi liên kết tài khoản Google"))
+                }
+                else -> {}
+            }
+            _uiState.update { it.copy(isUpdating = false) }
+        }
+    }
+    
+    fun linkEmailPassword(email: String, password: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUpdating = true) }
+            val result = profileRepository.linkEmailPassword(email, password)
+            when (result) {
+                is Resource.Success -> {
+                    _eventChannel.send(ProfileUiEvent.UpdateSuccess("Liên kết tài khoản email/password thành công"))
+                    loadProviders() // Reload providers sau khi liên kết thành công
+                }
+                is Resource.Error -> {
+                    _eventChannel.send(ProfileUiEvent.ShowError(result.message ?: "Lỗi liên kết tài khoản email/password"))
+                }
+                else -> {}
+            }
+            _uiState.update { it.copy(isUpdating = false) }
+        }
+    }
+    
+    fun hasPasswordProvider(): Boolean {
+        return _uiState.value.providers.contains("password")
+    }
+    
+    fun hasGoogleProvider(): Boolean {
+        return _uiState.value.providers.contains("google.com")
     }
 
     // Hàm clearMessages() không còn cần thiết nữa vì các thông báo đã được xử lý dưới dạng event

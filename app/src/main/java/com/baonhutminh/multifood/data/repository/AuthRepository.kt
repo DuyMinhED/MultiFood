@@ -8,6 +8,12 @@ interface AuthRepository {
     suspend fun signInWithGoogle(idToken: String): Resource<String>
 
     suspend fun sendPasswordReset(email: String): Resource<Unit>
+    
+    fun getCurrentUserProviders(): List<String>
+    suspend fun linkGoogleAccount(idToken: String): Resource<Unit>
+    suspend fun linkEmailPassword(email: String, password: String): Resource<Unit>
+    
+    suspend fun signOutGoogle()
 
     fun signOut()
 }
