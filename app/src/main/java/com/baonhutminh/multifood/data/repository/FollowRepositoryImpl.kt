@@ -2,6 +2,7 @@ package com.baonhutminh.multifood.data.repository
 
 import android.util.Log
 import com.baonhutminh.multifood.data.local.FollowDao
+import com.baonhutminh.multifood.data.local.UserDao
 import com.baonhutminh.multifood.data.model.FollowEntity
 import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
@@ -16,7 +17,8 @@ import javax.inject.Inject
 class FollowRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    private val followDao: FollowDao
+    private val followDao: FollowDao,
+    private val userDao: UserDao
 ) : FollowRepository {
 
     private val followsCollection = firestore.collection("follows")
@@ -37,17 +39,21 @@ class FollowRepositoryImpl @Inject constructor(
         }
 
         // Optimistic update Room trước
+        val delta = if (isCurrentlyFollowing) -1 else 1
         if (isCurrentlyFollowing) {
             followDao.delete(currentUserId, userId)
         } else {
             followDao.insert(FollowEntity(followerId = currentUserId, followingId = userId))
         }
+        
+        // Update followerCount trong Room ngay lập tức
+        userDao.updateFollowerCount(userId, delta)
 
         // Sync với Firestore (không rollback nếu fail - để giữ UX mượt)
         try {
             val followDocId = "${currentUserId}_$userId"
             val followRef = followsCollection.document(followDocId)
-            val delta = if (isCurrentlyFollowing) -1L else 1L
+            val firestoreDelta = if (isCurrentlyFollowing) -1L else 1L
 
             if (isCurrentlyFollowing) {
                 // Unfollow - xóa document
@@ -62,22 +68,22 @@ class FollowRepositoryImpl @Inject constructor(
                 followRef.set(followData).await()
             }
             
-            // Update followerCount của user được follow
+            // Update followerCount của user được follow trên Firestore
             try {
                 usersCollection.document(userId)
-                    .set(mapOf("followerCount" to FieldValue.increment(delta)), SetOptions.merge())
+                    .set(mapOf("followerCount" to FieldValue.increment(firestoreDelta)), SetOptions.merge())
                     .await()
             } catch (e: Exception) {
-                Log.e("FollowRepository", "Error updating followerCount", e)
+                Log.e("FollowRepository", "Error updating followerCount on Firestore", e)
             }
             
-            // Update followingCount của current user
+            // Update followingCount của current user trên Firestore
             try {
                 usersCollection.document(currentUserId)
-                    .set(mapOf("followingCount" to FieldValue.increment(delta)), SetOptions.merge())
+                    .set(mapOf("followingCount" to FieldValue.increment(firestoreDelta)), SetOptions.merge())
                     .await()
             } catch (e: Exception) {
-                Log.e("FollowRepository", "Error updating followingCount", e)
+                Log.e("FollowRepository", "Error updating followingCount on Firestore", e)
             }
             
             Log.d("FollowRepository", "Toggle follow success: $userId, wasFollowing: $isCurrentlyFollowing")
