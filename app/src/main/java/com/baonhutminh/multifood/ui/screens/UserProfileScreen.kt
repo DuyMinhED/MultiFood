@@ -79,7 +79,7 @@ fun UserProfileScreen(
                         userProfile = uiState.userProfile!!,
                         postCount = uiState.posts.size,
                         totalLikes = uiState.userProfile!!.totalLikesReceived,
-                        followerCount = uiState.userProfile!!.followerCount + uiState.followerCountDelta,
+                        followerCount = uiState.userProfile!!.followerCount,
                         isFollowing = uiState.isFollowing,
                         isCurrentUser = uiState.isCurrentUser,
                         onFollowClick = { viewModel.toggleFollow() }

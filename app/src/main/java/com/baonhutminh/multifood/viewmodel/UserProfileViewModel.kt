@@ -13,7 +13,6 @@ import com.baonhutminh.multifood.util.Resource
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -32,8 +31,7 @@ data class UserProfileUiState(
     val isFollowing: Boolean = false,
     val isCurrentUser: Boolean = false,
     val isLoading: Boolean = true,
-    val error: String? = null,
-    val followerCountDelta: Int = 0 // Optimistic update cho followerCount
+    val error: String? = null
 )
 
 @HiltViewModel
@@ -51,16 +49,14 @@ class UserProfileViewModel @Inject constructor(
     
     private val likedPostsFlow = profileRepository.getLikedPostsForCurrentUser()
     private val isFollowingFlow = followRepository.isFollowing(userId)
-    private val _followerCountDelta = MutableStateFlow(0)
     
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<UserProfileUiState> = combine(
         profileRepository.getUserProfileById(userId),
         postRepository.getPostsForUser(userId),
         likedPostsFlow,
-        isFollowingFlow,
-        _followerCountDelta
-    ) { userRes, postsRes, likedPosts, isFollowing, delta ->
+        isFollowingFlow
+    ) { userRes, postsRes, likedPosts, isFollowing ->
         val posts = (postsRes as? Resource.Success)?.data ?: emptyList()
         val likedIds = likedPosts.map { it.postId }.toSet()
         
@@ -68,16 +64,14 @@ class UserProfileViewModel @Inject constructor(
             val user: UserProfile?,
             val posts: List<PostWithAuthor>,
             val likedIds: Set<String>,
-            val isFollowing: Boolean,
-            val followerDelta: Int
+            val isFollowing: Boolean
         )
         
         IntermediateState(
             (userRes as? Resource.Success)?.data,
             posts,
             likedIds,
-            isFollowing,
-            delta
+            isFollowing
         )
     }.flatMapLatest { state ->
         if (state.posts.isEmpty()) {
@@ -89,8 +83,7 @@ class UserProfileViewModel @Inject constructor(
                     likedPostIds = state.likedIds,
                     isFollowing = state.isFollowing,
                     isCurrentUser = userId == currentUserId,
-                    isLoading = false,
-                    followerCountDelta = state.followerDelta
+                    isLoading = false
                 )
             )
         } else {
@@ -108,8 +101,7 @@ class UserProfileViewModel @Inject constructor(
                     likedPostIds = state.likedIds,
                     isFollowing = state.isFollowing,
                     isCurrentUser = userId == currentUserId,
-                    isLoading = false,
-                    followerCountDelta = state.followerDelta
+                    isLoading = false
                 )
             }
         }
@@ -122,14 +114,7 @@ class UserProfileViewModel @Inject constructor(
     fun toggleFollow() {
         viewModelScope.launch {
             val currentlyFollowing = uiState.value.isFollowing
-            
-            // Optimistic update delta ngay lập tức
-            _followerCountDelta.value += if (currentlyFollowing) -1 else 1
-            
             followRepository.toggleFollow(userId, currentlyFollowing)
-            
-            // Không reset delta - để UI giữ nguyên giá trị optimistic
-            // Firestore sẽ tự sync khi user quay lại màn hình này
         }
     }
 }
