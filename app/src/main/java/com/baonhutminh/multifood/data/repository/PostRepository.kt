@@ -4,7 +4,7 @@ import android.net.Uri
 import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.model.PostImage
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import kotlinx.coroutines.flow.Flow
 
 interface PostRepository {

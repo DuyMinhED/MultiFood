@@ -14,9 +14,13 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -36,6 +40,26 @@ fun UserProfileScreen(
     viewModel: UserProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    
+    // Xử lý events từ ViewModel
+    LaunchedEffect(key1 = true) {
+        viewModel.eventFlow.collect { event ->
+            when (event) {
+                is com.baonhutminh.multifood.viewmodel.UserProfileUiEvent.ShowSuccess -> {
+                    scope.launch {
+                        snackbarHostState.showSnackbar(event.message)
+                    }
+                }
+                is com.baonhutminh.multifood.viewmodel.UserProfileUiEvent.ShowError -> {
+                    scope.launch {
+                        snackbarHostState.showSnackbar(event.message)
+                    }
+                }
+            }
+        }
+    }
     
     Scaffold(
         topBar = {
@@ -47,7 +71,8 @@ fun UserProfileScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         if (uiState.isLoading) {
             Box(
@@ -68,24 +93,26 @@ fun UserProfileScreen(
                 Text("Không tìm thấy người dùng")
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                // Header - Profile Info
-                item {
-                    ProfileHeader(
-                        userProfile = uiState.userProfile!!,
-                        postCount = uiState.posts.size,
-                        totalLikes = uiState.userProfile!!.totalLikesReceived,
-                        followerCount = uiState.userProfile!!.followerCount,
-                        followingCount = uiState.userProfile!!.followingCount,
-                        isFollowing = uiState.isFollowing,
-                        isCurrentUser = uiState.isCurrentUser,
-                        onFollowClick = { viewModel.toggleFollow() }
-                    )
-                }
+            uiState.userProfile?.let { userProfile ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                ) {
+                    // Header - Profile Info
+                    item {
+                        ProfileHeader(
+                            userProfile = userProfile,
+                            postCount = uiState.posts.size,
+                            totalLikes = userProfile.totalLikesReceived,
+                            followerCount = userProfile.followerCount,
+                            followingCount = userProfile.followingCount,
+                            isFollowing = uiState.isFollowing,
+                            isFollowingLoading = uiState.isFollowingLoading,
+                            isCurrentUser = uiState.isCurrentUser,
+                            onFollowClick = { viewModel.toggleFollow() }
+                        )
+                    }
                 
                 // Divider
                 item {
@@ -145,6 +172,7 @@ fun UserProfileScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
+            }
         }
     }
 }
@@ -157,6 +185,7 @@ private fun ProfileHeader(
     followerCount: Int,
     followingCount: Int,
     isFollowing: Boolean,
+    isFollowingLoading: Boolean,
     isCurrentUser: Boolean,
     onFollowClick: () -> Unit
 ) {
@@ -202,6 +231,7 @@ private fun ProfileHeader(
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = onFollowClick,
+                enabled = !isFollowingLoading,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isFollowing) 
                         MaterialTheme.colorScheme.surfaceVariant 
@@ -212,18 +242,33 @@ private fun ProfileHeader(
                     .fillMaxWidth()
                     .padding(horizontal = 48.dp)
             ) {
-                Icon(
-                    imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.PersonAdd,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = if (isFollowing) 
-                        MaterialTheme.colorScheme.onSurfaceVariant 
-                    else 
-                        MaterialTheme.colorScheme.onPrimary
-                )
+                if (isFollowingLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = if (isFollowing) 
+                            MaterialTheme.colorScheme.onSurfaceVariant 
+                        else 
+                            MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.PersonAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isFollowing) 
+                            MaterialTheme.colorScheme.onSurfaceVariant 
+                        else 
+                            MaterialTheme.colorScheme.onPrimary
+                    )
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isFollowing) "Đang theo dõi" else "Theo dõi",
+                    text = when {
+                        isFollowingLoading -> "Đang xử lý..."
+                        isFollowing -> "Đang theo dõi"
+                        else -> "Theo dõi"
+                    },
                     color = if (isFollowing) 
                         MaterialTheme.colorScheme.onSurfaceVariant 
                     else 

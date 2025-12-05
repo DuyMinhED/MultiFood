@@ -1,7 +1,7 @@
 package com.baonhutminh.multifood.data.repository
 
 import com.baonhutminh.multifood.data.model.User
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 
 interface UserRepository {
     suspend fun getCurrentUser(): Resource<User?>

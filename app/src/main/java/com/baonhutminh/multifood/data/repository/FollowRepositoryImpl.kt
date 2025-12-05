@@ -4,7 +4,7 @@ import android.util.Log
 import com.baonhutminh.multifood.data.local.FollowDao
 import com.baonhutminh.multifood.data.local.UserDao
 import com.baonhutminh.multifood.data.model.FollowEntity
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -52,50 +52,74 @@ class FollowRepositoryImpl @Inject constructor(
         // Update followingCount của current user trong Room ngay lập tức
         userDao.updateFollowingCount(currentUserId, delta)
 
-        // Sync với Firestore (không rollback nếu fail - để giữ UX mượt)
+        // Sync với Firestore
+        // Lưu ý: Không rollback Room nếu Firestore fail để giữ UX mượt, nhưng sẽ thông báo lỗi
+        var hasCriticalError = false
+        var errorMessage: String? = null
+        
         try {
             val followDocId = "${currentUserId}_$userId"
             val followRef = followsCollection.document(followDocId)
             val firestoreDelta = if (isCurrentlyFollowing) -1L else 1L
 
-            if (isCurrentlyFollowing) {
-                // Unfollow - xóa document
-                followRef.delete().await()
-            } else {
-                // Follow - tạo document mới
-                val followData = hashMapOf(
-                    "followerId" to currentUserId,
-                    "followingId" to userId,
-                    "timestamp" to System.currentTimeMillis()
-                )
-                followRef.set(followData).await()
+            // Thao tác chính: tạo/xóa follow document (quan trọng nhất)
+            try {
+                if (isCurrentlyFollowing) {
+                    // Unfollow - xóa document
+                    followRef.delete().await()
+                } else {
+                    // Follow - tạo document mới
+                    val followData = hashMapOf(
+                        "followerId" to currentUserId,
+                        "followingId" to userId,
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    followRef.set(followData).await()
+                }
+            } catch (e: Exception) {
+                // Lỗi nghiêm trọng: không thể tạo/xóa follow document
+                hasCriticalError = true
+                errorMessage = "Không thể đồng bộ với server. Vui lòng kiểm tra kết nối mạng."
+                Log.e("FollowRepository", "Critical error: Cannot create/delete follow document", e)
             }
             
-            // Update followerCount của user được follow trên Firestore
+            // Update followerCount của user được follow trên Firestore (không nghiêm trọng)
             try {
                 usersCollection.document(userId)
                     .set(mapOf("followerCount" to FieldValue.increment(firestoreDelta)), SetOptions.merge())
                     .await()
             } catch (e: Exception) {
-                Log.e("FollowRepository", "Error updating followerCount on Firestore", e)
+                // Lỗi không nghiêm trọng: chỉ là update count, không ảnh hưởng follow status
+                Log.w("FollowRepository", "Warning: Error updating followerCount on Firestore", e)
             }
             
-            // Update followingCount của current user trên Firestore
+            // Update followingCount của current user trên Firestore (không nghiêm trọng)
             try {
                 usersCollection.document(currentUserId)
                     .set(mapOf("followingCount" to FieldValue.increment(firestoreDelta)), SetOptions.merge())
                     .await()
             } catch (e: Exception) {
-                Log.e("FollowRepository", "Error updating followingCount on Firestore", e)
+                // Lỗi không nghiêm trọng: chỉ là update count, không ảnh hưởng follow status
+                Log.w("FollowRepository", "Warning: Error updating followingCount on Firestore", e)
             }
             
-            Log.d("FollowRepository", "Toggle follow success: $userId, wasFollowing: $isCurrentlyFollowing")
+            if (!hasCriticalError) {
+                Log.d("FollowRepository", "Toggle follow success: $userId, wasFollowing: $isCurrentlyFollowing")
+            }
         } catch (e: Exception) {
-            // Log lỗi nhưng KHÔNG rollback Room - để UI vẫn mượt
-            Log.e("FollowRepository", "Error syncing follow to Firestore (keeping local state)", e)
+            // Lỗi không mong đợi
+            hasCriticalError = true
+            errorMessage = "Đã xảy ra lỗi khi đồng bộ. Vui lòng thử lại."
+            Log.e("FollowRepository", "Unexpected error syncing follow to Firestore", e)
         }
         
-        return Resource.Success(Unit)
+        // Nếu có lỗi nghiêm trọng, return Error để ViewModel có thể thông báo cho người dùng
+        // Nhưng vẫn giữ optimistic update trong Room để UI mượt
+        return if (hasCriticalError && errorMessage != null) {
+            Resource.Error(errorMessage)
+        } else {
+            Resource.Success(Unit)
+        }
     }
 
     override suspend fun syncFollowsFromFirestore() {

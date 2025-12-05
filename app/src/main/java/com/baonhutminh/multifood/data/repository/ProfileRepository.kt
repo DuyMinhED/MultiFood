@@ -3,7 +3,7 @@ package com.baonhutminh.multifood.data.repository
 import android.net.Uri
 import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.UserProfile
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import kotlinx.coroutines.flow.Flow
 
 interface ProfileRepository {

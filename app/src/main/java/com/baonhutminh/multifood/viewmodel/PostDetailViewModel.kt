@@ -13,7 +13,7 @@ import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.data.repository.CommentRepository
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -75,7 +75,8 @@ class PostDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val postId: String = savedStateHandle.get<String>("postId")!!
+    private val postId: String = savedStateHandle.get<String>("postId")
+        ?: throw IllegalArgumentException("postId is required for PostDetailViewModel")
     private val viewModelState = MutableStateFlow(ViewModelState())
     private val _events = MutableSharedFlow<PostDetailEvent>()
     val events = _events.asSharedFlow()
@@ -94,13 +95,23 @@ class PostDetailViewModel @Inject constructor(
         likedPostsFlow
     ) { postRes, commentsRes, userRes, images, likedPosts ->
         val isLiked = likedPosts.any { it.postId == postId }
+        val postWithAuthor = (postRes as? Resource.Success)?.data
+        
+        // Kiểm tra xem postWithAuthor có khớp với postId hiện tại không
+        // Tránh hiển thị data cũ khi chuyển sang post mới
+        val validPostWithAuthor = if (postWithAuthor?.post?.id == postId) {
+            postWithAuthor
+        } else {
+            null
+        }
+        
         PostDetailIntermediateState(
-            postWithAuthor = (postRes as? Resource.Success)?.data,
+            postWithAuthor = validPostWithAuthor,
             comments = (commentsRes as? Resource.Success)?.data ?: emptyList(),
             likedComments = emptyList(), // Will be filled in next combine
             currentUser = (userRes as? Resource.Success)?.data,
             isLiked = isLiked,
-            isLoading = (postRes as? Resource.Success)?.data == null,
+            isLoading = validPostWithAuthor == null,
             images = images.map { it.url }
         )
     }.combine(likedCommentsFlow) { state, likedComments ->

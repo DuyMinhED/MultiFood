@@ -9,7 +9,7 @@ import com.baonhutminh.multifood.data.model.CommentLikeEntity
 import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.data.model.UserProfile
 import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -44,8 +44,13 @@ class CommentRepositoryImpl @Inject constructor(
 
     override suspend fun refreshCommentsForPost(postId: String): Resource<Unit> {
         return try {
+            // Thêm limit để tránh load quá nhiều comments
+            // TODO: Implement pagination đầy đủ với startAfter() cho load more
             val snapshot = firestore.collection("posts").document(postId).collection("comments")
-                .orderBy("createdAt", Query.Direction.ASCENDING).get().await()
+                .orderBy("createdAt", Query.Direction.ASCENDING)
+                .limit(100) // Load 100 comments mỗi lần (comments thường ít hơn posts)
+                .get()
+                .await()
             val comments = snapshot.toObjects(Comment::class.java)
             
             // Collect unique user IDs để sync UserProfiles

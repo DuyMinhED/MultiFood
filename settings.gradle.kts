@@ -21,3 +21,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "MultiFood"
 include(":app")
+include(":common")
+include(":core")
+include(":data")
+include(":domain")
+include(":design-system")

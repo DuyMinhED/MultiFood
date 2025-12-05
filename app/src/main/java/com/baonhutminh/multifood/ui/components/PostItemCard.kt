@@ -73,16 +73,16 @@ fun PostItemCard(
             // Box for image and rating
             Box {
                 // Main image - Placeholder if no images
-                if (images.isNotEmpty()) {
+                images.firstOrNull()?.let { firstImage ->
                     AsyncImage(
-                        model = images.first(),
+                        model = firstImage,
                         contentDescription = "Post Image",
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp),
                         contentScale = ContentScale.Crop
                     )
-                } else {
+                } ?: run {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -126,7 +126,7 @@ fun PostItemCard(
             // Content Section
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = post.restaurantName.ifEmpty { "Nhà hàng" },
+                    text = post.restaurantName.ifEmpty { "Nhà hàng chưa có tên" },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -137,7 +137,7 @@ fun PostItemCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = post.title,
+                    text = post.title.ifEmpty { "Bài viết không có tiêu đề" },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary,
@@ -158,7 +158,7 @@ fun PostItemCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = post.restaurantAddress.ifEmpty { "Địa chỉ" },
+                        text = post.restaurantAddress.ifEmpty { "Địa chỉ chưa cập nhật" },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -213,13 +213,16 @@ fun PostItemCard(
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Validate image URL trước khi hiển thị
+                        val avatarUrl = author?.avatarUrl?.takeIf { it.isNotBlank() && it.startsWith("http") }
                         AsyncImage(
-                            model = author?.avatarUrl ?: "",
+                            model = avatarUrl ?: "",
                             contentDescription = "User Avatar",
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            error = null // Coil sẽ tự xử lý error và hiển thị placeholder
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {

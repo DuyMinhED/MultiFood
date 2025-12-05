@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.data.repository.AuthRepository
 import com.baonhutminh.multifood.data.repository.UserRepository
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

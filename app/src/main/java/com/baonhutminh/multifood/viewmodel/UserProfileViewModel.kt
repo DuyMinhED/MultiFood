@@ -9,7 +9,7 @@ import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
 import com.baonhutminh.multifood.data.repository.FollowRepository
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,8 +20,16 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+// Sealed class cho các sự kiện chỉ xảy ra một lần (side-effects) như Toast, Snackbar
+sealed class UserProfileUiEvent {
+    data class ShowError(val message: String) : UserProfileUiEvent()
+    data class ShowSuccess(val message: String) : UserProfileUiEvent()
+}
 
 data class UserProfileUiState(
     val userProfile: UserProfile? = null,
@@ -31,6 +39,7 @@ data class UserProfileUiState(
     val isFollowing: Boolean = false,
     val isCurrentUser: Boolean = false,
     val isLoading: Boolean = true,
+    val isFollowingLoading: Boolean = false,
     val error: String? = null
 )
 
@@ -50,13 +59,21 @@ class UserProfileViewModel @Inject constructor(
     private val likedPostsFlow = profileRepository.getLikedPostsForCurrentUser()
     private val isFollowingFlow = followRepository.isFollowing(userId)
     
+    // Channel để gửi các sự kiện một lần, đảm bảo mỗi sự kiện chỉ được xử lý một lần
+    private val _eventChannel = Channel<UserProfileUiEvent>()
+    val eventFlow = _eventChannel.receiveAsFlow()
+    
+    // MutableStateFlow để cập nhật loading state cho follow action
+    private val _isFollowingLoading = kotlinx.coroutines.flow.MutableStateFlow(false)
+    
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<UserProfileUiState> = combine(
         profileRepository.getUserProfileById(userId),
         postRepository.getPostsForUser(userId),
         likedPostsFlow,
-        isFollowingFlow
-    ) { userRes, postsRes, likedPosts, isFollowing ->
+        isFollowingFlow,
+        _isFollowingLoading
+    ) { userRes, postsRes, likedPosts, isFollowing, isFollowingLoading ->
         val posts = (postsRes as? Resource.Success)?.data ?: emptyList()
         val likedIds = likedPosts.map { it.postId }.toSet()
         
@@ -64,14 +81,16 @@ class UserProfileViewModel @Inject constructor(
             val user: UserProfile?,
             val posts: List<PostWithAuthor>,
             val likedIds: Set<String>,
-            val isFollowing: Boolean
+            val isFollowing: Boolean,
+            val isFollowingLoading: Boolean
         )
         
         IntermediateState(
             (userRes as? Resource.Success)?.data,
             posts,
             likedIds,
-            isFollowing
+            isFollowing,
+            isFollowingLoading
         )
     }.flatMapLatest { state ->
         if (state.posts.isEmpty()) {
@@ -83,7 +102,8 @@ class UserProfileViewModel @Inject constructor(
                     likedPostIds = state.likedIds,
                     isFollowing = state.isFollowing,
                     isCurrentUser = userId == currentUserId,
-                    isLoading = false
+                    isLoading = false,
+                    isFollowingLoading = state.isFollowingLoading
                 )
             )
         } else {
@@ -101,7 +121,8 @@ class UserProfileViewModel @Inject constructor(
                     likedPostIds = state.likedIds,
                     isFollowing = state.isFollowing,
                     isCurrentUser = userId == currentUserId,
-                    isLoading = false
+                    isLoading = false,
+                    isFollowingLoading = state.isFollowingLoading
                 )
             }
         }
@@ -113,16 +134,39 @@ class UserProfileViewModel @Inject constructor(
     
     fun toggleFollow() {
         viewModelScope.launch {
-            val currentlyFollowing = uiState.value.isFollowing
-            val result = followRepository.toggleFollow(userId, currentlyFollowing)
+            // Không cho phép follow nếu đang loading
+            if (_isFollowingLoading.value) return@launch
             
-            // Refresh user profile để cập nhật followerCount
-            if (result is Resource.Success) {
-                profileRepository.refreshUserProfileById(userId)
-                // Nếu đang xem profile của chính mình, refresh current user profile để cập nhật followingCount
-                if (userId == currentUserId) {
-                    profileRepository.refreshUserProfile()
+            val currentlyFollowing = uiState.value.isFollowing
+            _isFollowingLoading.value = true
+            
+            try {
+                val result = followRepository.toggleFollow(userId, currentlyFollowing)
+                
+                when (result) {
+                    is Resource.Success -> {
+                        // Refresh user profile để cập nhật followerCount
+                        profileRepository.refreshUserProfileById(userId)
+                        // Nếu đang xem profile của chính mình, refresh current user profile để cập nhật followingCount
+                        if (userId == currentUserId) {
+                            profileRepository.refreshUserProfile()
+                        }
+                        // Gửi success message
+                        val message = if (currentlyFollowing) "Đã bỏ theo dõi" else "Đã theo dõi"
+                        _eventChannel.send(UserProfileUiEvent.ShowSuccess(message))
+                    }
+                    is Resource.Error -> {
+                        // Gửi error message
+                        _eventChannel.send(UserProfileUiEvent.ShowError(result.message ?: "Không thể thực hiện thao tác"))
+                    }
+                    is Resource.Loading -> {
+                        // Không cần xử lý
+                    }
                 }
+            } catch (e: Exception) {
+                _eventChannel.send(UserProfileUiEvent.ShowError("Đã xảy ra lỗi: ${e.message ?: "Không xác định"}"))
+            } finally {
+                _isFollowingLoading.value = false
             }
         }
     }

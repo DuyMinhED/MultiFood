@@ -11,7 +11,7 @@ import com.baonhutminh.multifood.data.model.Post
 import com.baonhutminh.multifood.data.repository.PostRepository
 import com.baonhutminh.multifood.data.repository.ProfileRepository
 import com.baonhutminh.multifood.data.repository.RestaurantRepository
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -53,11 +53,56 @@ class CreatePostViewModel @Inject constructor(
     val isSearchingRestaurants = mutableStateOf(false)
     private var searchJob: Job? = null
 
+    // Validation constants
+    private val MAX_TITLE_LENGTH = 200
+    private val MAX_CONTENT_LENGTH = 5000
+    private val MIN_RATING = 0f
+    private val MAX_RATING = 5f
+    private val MAX_PRICE = 10_000_000 // 10 triệu VNĐ
+    
+    val titleError = derivedStateOf {
+        when {
+            title.value.isBlank() -> null // Sẽ được check trong isFormValid
+            title.value.length > MAX_TITLE_LENGTH -> "Tiêu đề không được vượt quá $MAX_TITLE_LENGTH ký tự"
+            else -> null
+        }
+    }
+    
+    val contentError = derivedStateOf {
+        when {
+            content.value.isBlank() -> null // Sẽ được check trong isFormValid
+            content.value.length > MAX_CONTENT_LENGTH -> "Nội dung không được vượt quá $MAX_CONTENT_LENGTH ký tự"
+            else -> null
+        }
+    }
+    
+    val ratingError = derivedStateOf {
+        when {
+            rating.value < MIN_RATING || rating.value > MAX_RATING -> 
+                "Đánh giá phải từ ${MIN_RATING.toInt()} đến ${MAX_RATING.toInt()} sao"
+            else -> null
+        }
+    }
+    
+    val priceError = derivedStateOf {
+        val price = pricePerPerson.value.toIntOrNull()
+        when {
+            price == null && pricePerPerson.value.isNotBlank() -> "Giá không hợp lệ"
+            price != null && price < 0 -> "Giá không được âm"
+            price != null && price > MAX_PRICE -> "Giá không được vượt quá ${MAX_PRICE / 1_000_000} triệu VNĐ"
+            else -> null
+        }
+    }
+    
     val isFormValid = derivedStateOf {
         placeName.value.isNotBlank() &&
         placeAddress.value.isNotBlank() &&
         title.value.isNotBlank() &&
-        content.value.isNotBlank()
+        content.value.isNotBlank() &&
+        titleError.value == null &&
+        contentError.value == null &&
+        ratingError.value == null &&
+        priceError.value == null
     }
 
     private val _uiState = mutableStateOf<CreatePostUiState>(CreatePostUiState.Idle)
@@ -105,7 +150,7 @@ class CreatePostViewModel @Inject constructor(
                 // Load images từ PostImageDao
                 originalImageUrls = postImageDao.getImagesForPost(postId)
                     .first()
-                    .map { it.url }
+                    ?.map { it.url } ?: emptyList()
             }
         }
     }
@@ -212,9 +257,40 @@ class CreatePostViewModel @Inject constructor(
     }
 
     fun submitPost() {
-        if (!isFormValid.value) {
-            _uiState.value = CreatePostUiState.Error("Vui lòng điền đầy đủ các trường bắt buộc.")
-            return
+        // Validate và hiển thị error cụ thể
+        when {
+            placeName.value.isBlank() -> {
+                _uiState.value = CreatePostUiState.Error("Vui lòng nhập tên nhà hàng.")
+                return
+            }
+            placeAddress.value.isBlank() -> {
+                _uiState.value = CreatePostUiState.Error("Vui lòng nhập địa chỉ nhà hàng.")
+                return
+            }
+            title.value.isBlank() -> {
+                _uiState.value = CreatePostUiState.Error("Vui lòng nhập tiêu đề.")
+                return
+            }
+            content.value.isBlank() -> {
+                _uiState.value = CreatePostUiState.Error("Vui lòng nhập nội dung đánh giá.")
+                return
+            }
+            titleError.value != null -> {
+                _uiState.value = CreatePostUiState.Error(titleError.value!!)
+                return
+            }
+            contentError.value != null -> {
+                _uiState.value = CreatePostUiState.Error(contentError.value!!)
+                return
+            }
+            ratingError.value != null -> {
+                _uiState.value = CreatePostUiState.Error(ratingError.value!!)
+                return
+            }
+            priceError.value != null -> {
+                _uiState.value = CreatePostUiState.Error(priceError.value!!)
+                return
+            }
         }
 
         if (isEditing.value) {
@@ -239,21 +315,21 @@ class CreatePostViewModel @Inject constructor(
 
             // Tìm hoặc tạo restaurant
             // Nếu đã chọn restaurant, dùng ID của nó
-            val restaurantId = if (selectedRestaurant.value != null) {
-                selectedRestaurant.value!!.id
-            } else {
+            val restaurantId = selectedRestaurant.value?.id ?: run {
                 // Nếu chưa chọn, tìm hoặc tạo mới
                 val restaurantResult = restaurantRepository.findOrCreateRestaurant(
                     name = placeName.value,
                     address = placeAddress.value
                 )
                 
-                if (restaurantResult is com.baonhutminh.multifood.util.Resource.Error) {
-                    _uiState.value = CreatePostUiState.Error(restaurantResult.message ?: "Lỗi tìm hoặc tạo nhà hàng")
-                    return@launch
+                when (restaurantResult) {
+                    is Resource.Error -> {
+                        _uiState.value = CreatePostUiState.Error(restaurantResult.message ?: "Lỗi tìm hoặc tạo nhà hàng")
+                        return@launch
+                    }
+                    is Resource.Success -> restaurantResult.data ?: ""
+                    else -> ""
                 }
-                
-                (restaurantResult as com.baonhutminh.multifood.util.Resource.Success<String>).data ?: ""
             }
             
             if (restaurantId.isBlank()) {
@@ -261,11 +337,15 @@ class CreatePostViewModel @Inject constructor(
                 return@launch
             }
 
+            // Validate và normalize data trước khi tạo post
+            val normalizedRating = rating.value.coerceIn(MIN_RATING, MAX_RATING)
+            val normalizedPrice = (pricePerPerson.value.toIntOrNull() ?: 0).coerceIn(0, MAX_PRICE)
+            
             val post = Post(
-                title = title.value,
-                content = content.value,
-                rating = rating.value,
-                pricePerPerson = pricePerPerson.value.toIntOrNull() ?: 0,
+                title = title.value.trim(),
+                content = content.value.trim(),
+                rating = normalizedRating,
+                pricePerPerson = normalizedPrice,
                 restaurantId = restaurantId,
                 createdAt = Date(),
                 updatedAt = Date()
@@ -304,23 +384,21 @@ class CreatePostViewModel @Inject constructor(
             val imageUrls = uploadImages()
             if (imageUrls == null) return@launch
 
-            // Tìm hoặc tạo restaurant
-            // Nếu đã chọn restaurant, dùng ID của nó
-            val restaurantId = if (selectedRestaurant.value != null) {
-                selectedRestaurant.value!!.id
-            } else {
+            val restaurantId = selectedRestaurant.value?.id ?: run {
                 // Nếu chưa chọn, tìm hoặc tạo mới
                 val restaurantResult = restaurantRepository.findOrCreateRestaurant(
                     name = placeName.value,
                     address = placeAddress.value
                 )
                 
-                if (restaurantResult is com.baonhutminh.multifood.util.Resource.Error) {
-                    _uiState.value = CreatePostUiState.Error(restaurantResult.message ?: "Lỗi tìm hoặc tạo nhà hàng")
-                    return@launch
+                when (restaurantResult) {
+                    is Resource.Error -> {
+                        _uiState.value = CreatePostUiState.Error(restaurantResult.message ?: "Lỗi tìm hoặc tạo nhà hàng")
+                        return@launch
+                    }
+                    is Resource.Success -> restaurantResult.data ?: ""
+                    else -> ""
                 }
-                
-                (restaurantResult as com.baonhutminh.multifood.util.Resource.Success<String>).data ?: ""
             }
             
             if (restaurantId.isBlank()) {
@@ -328,13 +406,17 @@ class CreatePostViewModel @Inject constructor(
                 return@launch
             }
 
+            // Validate và normalize data trước khi update post
+            val normalizedRating = rating.value.coerceIn(MIN_RATING, MAX_RATING)
+            val normalizedPrice = (pricePerPerson.value.toIntOrNull() ?: 0).coerceIn(0, MAX_PRICE)
+            
             val updatedPost = Post(
                 id = editingPostId.value!!,
                 userId = user.id,
-                title = title.value,
-                content = content.value,
-                rating = rating.value,
-                pricePerPerson = pricePerPerson.value.toIntOrNull() ?: 0,
+                title = title.value.trim(),
+                content = content.value.trim(),
+                rating = normalizedRating,
+                pricePerPerson = normalizedPrice,
                 restaurantId = restaurantId,
                 updatedAt = Date()
                 // Các trường khác sẽ được giữ nguyên nhờ SetOptions.merge()
@@ -389,7 +471,7 @@ class CreatePostViewModel @Inject constructor(
             if (result is Resource.Success) {
                 postRepository.refreshAllPosts()
                 profileRepository.refreshUserProfile()
-                _events.emit(CreatePostEvent.NavigateBack)
+                _events.emit(CreatePostEvent.NavigateToHome)
             } else {
                 _uiState.value = CreatePostUiState.Error(result.message ?: "Lỗi xóa bài viết")
             }
@@ -406,4 +488,5 @@ sealed class CreatePostUiState {
 
 sealed class CreatePostEvent {
     object NavigateBack : CreatePostEvent()
+    object NavigateToHome : CreatePostEvent()
 }

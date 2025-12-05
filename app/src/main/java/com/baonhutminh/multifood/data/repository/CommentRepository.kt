@@ -3,7 +3,7 @@ package com.baonhutminh.multifood.data.repository
 import com.baonhutminh.multifood.data.model.Comment
 import com.baonhutminh.multifood.data.model.CommentLikeEntity
 import com.baonhutminh.multifood.data.model.relations.CommentWithAuthor
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import kotlinx.coroutines.flow.Flow
 
 interface CommentRepository {

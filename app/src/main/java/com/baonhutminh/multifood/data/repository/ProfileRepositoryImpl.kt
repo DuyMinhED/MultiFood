@@ -8,7 +8,9 @@ import com.baonhutminh.multifood.data.model.Like
 import com.baonhutminh.multifood.data.model.PostLikeEntity
 import com.baonhutminh.multifood.data.model.User
 import com.baonhutminh.multifood.data.model.UserProfile
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
+import com.baonhutminh.multifood.common.retryWithBackoff
+import com.baonhutminh.multifood.common.DEFAULT_UPLOAD_RETRY_CONFIG
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
@@ -106,23 +108,42 @@ class ProfileRepositoryImpl @Inject constructor(
             val rootLikeRef = likesCollection.document(likeDocId)
             val postLikeRef = postsCollection.document(postId).collection("likes").document(currentUser.uid)
 
-            firestore.runBatch { batch ->
-                if (isCurrentlyLiked) {
-                    // Unlike: Delete from both locations
-                    batch.delete(rootLikeRef)
-                    batch.delete(postLikeRef)
+            // Sử dụng Transaction để tránh race condition
+            // Transaction sẽ kiểm tra lại trạng thái thực tế trước khi thực thi
+            firestore.runTransaction { transaction ->
+                // Kiểm tra trạng thái thực tế trong Firestore
+                val rootLikeSnap = transaction.get(rootLikeRef)
+                val postLikeSnap = transaction.get(postLikeRef)
+                val actuallyLiked = rootLikeSnap.exists() && postLikeSnap.exists()
+                
+                // Chỉ thực hiện thay đổi nếu trạng thái khác với mong đợi
+                // Hoặc nếu trạng thái đúng như mong đợi thì thực hiện toggle
+                if (actuallyLiked == isCurrentlyLiked) {
+                    // Trạng thái khớp với mong đợi, thực hiện toggle
+                    if (isCurrentlyLiked) {
+                        // Unlike: Delete from both locations
+                        transaction.delete(rootLikeRef)
+                        transaction.delete(postLikeRef)
+                    } else {
+                        // Like: Add to both locations
+                        val likeData = hashMapOf(
+                            "userId" to currentUser.uid,
+                            "postId" to postId,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+                        transaction.set(rootLikeRef, likeData)
+                        transaction.set(postLikeRef, Like())
+                    }
                 } else {
-                    // Like: Add to both locations
-                    val likeData = hashMapOf(
-                        "userId" to currentUser.uid,
-                        "postId" to postId,
-                        "timestamp" to System.currentTimeMillis()
-                    )
-                    batch.set(rootLikeRef, likeData)
-                    batch.set(postLikeRef, Like())
+                    // Trạng thái không khớp (race condition đã xảy ra)
+                    // Không làm gì, để tránh duplicate hoặc xóa nhầm
+                    Log.w("ProfileRepositoryImpl", "Like state mismatch: expected $isCurrentlyLiked but found $actuallyLiked")
                 }
             }.await()
 
+            // Update Room sau khi Firestore thành công
+            // Lưu ý: Có thể có race condition nhỏ ở đây, nhưng không nghiêm trọng
+            // vì Firestore là source of truth
             if (isCurrentlyLiked) {
                 postLikeDao.delete(postId, currentUser.uid)
             } else {
@@ -218,19 +239,23 @@ class ProfileRepositoryImpl @Inject constructor(
     override suspend fun uploadAvatar(imageUri: Uri): Resource<String> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
         return try {
-            val storageRef = storage.reference.child("avatars/${currentUser.uid}.jpg")
-            storageRef.putFile(imageUri).await()
-            val downloadUrl = storageRef.downloadUrl.await().toString()
+            retryWithBackoff(config = DEFAULT_UPLOAD_RETRY_CONFIG) {
+                val storageRef = storage.reference.child("avatars/${currentUser.uid}.jpg")
+                storageRef.putFile(imageUri).await()
+                val downloadUrl = storageRef.downloadUrl.await().toString()
 
-            val profileUpdates = userProfileChangeRequest { photoUri = Uri.parse(downloadUrl) }
-            currentUser.updateProfile(profileUpdates).await()
-            usersCollection.document(currentUser.uid).update("avatarUrl", downloadUrl).await()
-            refreshUserProfile()
-            Resource.Success(downloadUrl)
+                val profileUpdates = userProfileChangeRequest { photoUri = Uri.parse(downloadUrl) }
+                currentUser.updateProfile(profileUpdates).await()
+                usersCollection.document(currentUser.uid).update("avatarUrl", downloadUrl).await()
+                refreshUserProfile()
+                downloadUrl
+            }.let { downloadUrl ->
+                Resource.Success(downloadUrl)
+            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.e("ProfileRepositoryImpl", "Error uploading avatar", e)
-            Resource.Error(e.message ?: "Lỗi tải ảnh lên")
+            Log.e("ProfileRepositoryImpl", "Error uploading avatar after retries", e)
+            Resource.Error(e.message ?: "Lỗi tải ảnh đại diện lên sau nhiều lần thử")
         }
     }
 

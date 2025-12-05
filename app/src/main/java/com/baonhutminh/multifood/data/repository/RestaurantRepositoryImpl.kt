@@ -3,11 +3,13 @@ package com.baonhutminh.multifood.data.repository
 import android.util.Log
 import com.baonhutminh.multifood.data.local.RestaurantDao
 import com.baonhutminh.multifood.data.model.RestaurantEntity
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.Date
@@ -125,8 +127,33 @@ class RestaurantRepositoryImpl @Inject constructor(
     }
 
     override fun getRestaurantById(restaurantId: String): Flow<Resource<RestaurantEntity?>> {
-        return restaurantDao.getRestaurantById(restaurantId).map { restaurant ->
-            Resource.Success(restaurant)
+        return restaurantDao.getRestaurantById(restaurantId).flatMapLatest { restaurant ->
+            if (restaurant != null) {
+                flow { emit(Resource.Success(restaurant)) }
+            } else {
+                // Nếu chưa có trong Room, fetch từ Firestore
+                flow {
+                    try {
+                        val doc = restaurantsCollection.document(restaurantId).get().await()
+                        if (doc.exists()) {
+                            val firestoreRestaurant = doc.toObject(RestaurantEntity::class.java)
+                            if (firestoreRestaurant != null) {
+                                val restaurantEntity = firestoreRestaurant.copy(id = restaurantId)
+                                restaurantDao.upsert(restaurantEntity)
+                                emit(Resource.Success(restaurantEntity))
+                            } else {
+                                emit(Resource.Success(null))
+                            }
+                        } else {
+                            emit(Resource.Success(null))
+                        }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Log.e("RestaurantRepositoryImpl", "Error fetching restaurant from Firestore: $restaurantId", e)
+                        emit(Resource.Error(e.message ?: "Không thể tải thông tin nhà hàng"))
+                    }
+                }
+            }
         }
     }
 
@@ -162,58 +189,120 @@ class RestaurantRepositoryImpl @Inject constructor(
             val normalizedName = normalizeString(name)
             val normalizedAddress = normalizeString(address)
             
-            // Query theo tên (prefix match)
-            val nameQuery = if (name.isNotBlank()) {
-                restaurantsCollection
-                    .whereGreaterThanOrEqualTo("name", name)
-                    .whereLessThanOrEqualTo("name", name + "\uf8ff")
-                    .limit(30)
-                    .get()
-                    .await()
+            // Query theo tên (prefix match) - case-insensitive bằng cách query cả lowercase và uppercase
+            val nameQueries = if (name.isNotBlank()) {
+                val nameLower = name.lowercase()
+                val nameUpper = name.uppercase()
+                val nameCapitalized = name.lowercase().replaceFirstChar { it.uppercaseChar() }
+                
+                // Query với nhiều variants để tăng khả năng tìm thấy (case-insensitive)
+                listOfNotNull(
+                    try {
+                        restaurantsCollection
+                            .whereGreaterThanOrEqualTo("name", nameLower)
+                            .whereLessThanOrEqualTo("name", nameLower + "\uf8ff")
+                            .limit(30)
+                            .get()
+                            .await()
+                    } catch (e: Exception) {
+                        null
+                    },
+                    if (nameLower != nameUpper) {
+                        try {
+                            restaurantsCollection
+                                .whereGreaterThanOrEqualTo("name", nameUpper)
+                                .whereLessThanOrEqualTo("name", nameUpper + "\uf8ff")
+                                .limit(30)
+                                .get()
+                                .await()
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else null,
+                    if (nameCapitalized != nameLower && nameCapitalized != nameUpper) {
+                        try {
+                            restaurantsCollection
+                                .whereGreaterThanOrEqualTo("name", nameCapitalized)
+                                .whereLessThanOrEqualTo("name", nameCapitalized + "\uf8ff")
+                                .limit(30)
+                                .get()
+                                .await()
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else null
+                )
             } else {
-                null
+                emptyList()
             }
             
-            // Query theo địa chỉ (prefix match)
-            val addressQuery = if (address.isNotBlank()) {
-                restaurantsCollection
-                    .whereGreaterThanOrEqualTo("address", address)
-                    .whereLessThanOrEqualTo("address", address + "\uf8ff")
-                    .limit(30)
-                    .get()
-                    .await()
+            // Query theo địa chỉ (prefix match) - case-insensitive
+            val addressQueries = if (address.isNotBlank()) {
+                val addressLower = address.lowercase()
+                val addressUpper = address.uppercase()
+                
+                listOfNotNull(
+                    try {
+                        restaurantsCollection
+                            .whereGreaterThanOrEqualTo("address", addressLower)
+                            .whereLessThanOrEqualTo("address", addressLower + "\uf8ff")
+                            .limit(30)
+                            .get()
+                            .await()
+                    } catch (e: Exception) {
+                        null
+                    },
+                    if (addressLower != addressUpper) {
+                        try {
+                            restaurantsCollection
+                                .whereGreaterThanOrEqualTo("address", addressUpper)
+                                .whereLessThanOrEqualTo("address", addressUpper + "\uf8ff")
+                                .limit(30)
+                                .get()
+                                .await()
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else null
+                )
             } else {
-                null
+                emptyList()
             }
             
-            // Merge và deduplicate kết quả
+            // Merge và deduplicate kết quả từ tất cả queries
             val allDocs = mutableSetOf<String>()
             val restaurantsMap = mutableMapOf<String, RestaurantEntity>()
             
-            nameQuery?.documents?.forEach { doc ->
-                if (!allDocs.contains(doc.id)) {
-                    allDocs.add(doc.id)
-                    try {
-                        val restaurant = doc.toObject(RestaurantEntity::class.java)
-                        if (restaurant != null) {
-                            restaurantsMap[doc.id] = restaurant.copy(id = doc.id)
+            // Process name queries
+            nameQueries.forEach { querySnapshot ->
+                querySnapshot?.documents?.forEach { doc ->
+                    if (!allDocs.contains(doc.id)) {
+                        allDocs.add(doc.id)
+                        try {
+                            val restaurant = doc.toObject(RestaurantEntity::class.java)
+                            if (restaurant != null) {
+                                restaurantsMap[doc.id] = restaurant.copy(id = doc.id)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("RestaurantRepositoryImpl", "Error parsing restaurant document ${doc.id}", e)
                         }
-                    } catch (e: Exception) {
-                        Log.e("RestaurantRepositoryImpl", "Error parsing restaurant document ${doc.id}", e)
                     }
                 }
             }
             
-            addressQuery?.documents?.forEach { doc ->
-                if (!allDocs.contains(doc.id)) {
-                    allDocs.add(doc.id)
-                    try {
-                        val restaurant = doc.toObject(RestaurantEntity::class.java)
-                        if (restaurant != null) {
-                            restaurantsMap[doc.id] = restaurant.copy(id = doc.id)
+            // Process address queries
+            addressQueries.forEach { querySnapshot ->
+                querySnapshot?.documents?.forEach { doc ->
+                    if (!allDocs.contains(doc.id)) {
+                        allDocs.add(doc.id)
+                        try {
+                            val restaurant = doc.toObject(RestaurantEntity::class.java)
+                            if (restaurant != null) {
+                                restaurantsMap[doc.id] = restaurant.copy(id = doc.id)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("RestaurantRepositoryImpl", "Error parsing restaurant document ${doc.id}", e)
                         }
-                    } catch (e: Exception) {
-                        Log.e("RestaurantRepositoryImpl", "Error parsing restaurant document ${doc.id}", e)
                     }
                 }
             }

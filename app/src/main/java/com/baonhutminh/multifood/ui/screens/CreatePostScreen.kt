@@ -44,7 +44,8 @@ import com.baonhutminh.multifood.viewmodel.CreatePostViewModel
 @Composable
 fun CreatePostScreen(
     viewModel: CreatePostViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToHome: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState
     val isFormValid by viewModel.isFormValid
@@ -56,9 +57,14 @@ fun CreatePostScreen(
     val selectedRestaurant by viewModel.selectedRestaurant
 
     LaunchedEffect(Unit) {
-        viewModel.events.collect {
-            if (it is CreatePostEvent.NavigateBack) {
-                onNavigateBack()
+        viewModel.events.collect { event ->
+            when (event) {
+                is CreatePostEvent.NavigateBack -> {
+                    onNavigateBack()
+                }
+                is CreatePostEvent.NavigateToHome -> {
+                    onNavigateToHome()
+                }
             }
         }
     }

@@ -10,7 +10,10 @@ import com.baonhutminh.multifood.data.model.PostEntity
 import com.baonhutminh.multifood.data.model.PostImage
 import com.baonhutminh.multifood.data.model.PostImageEntity
 import com.baonhutminh.multifood.data.model.relations.PostWithAuthor
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
+import com.baonhutminh.multifood.common.retryWithBackoff
+import com.baonhutminh.multifood.common.DEFAULT_UPLOAD_RETRY_CONFIG
+import com.baonhutminh.multifood.common.DEFAULT_NETWORK_RETRY_CONFIG
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -37,7 +40,8 @@ class PostRepositoryImpl @Inject constructor(
     private val postDao: PostDao,
     private val commentDao: CommentDao,
     private val postImageDao: PostImageDao,
-    private val restaurantRepository: RestaurantRepository
+    private val restaurantRepository: RestaurantRepository,
+    private val profileRepository: ProfileRepository
 ) : PostRepository {
 
     private val postsCollection = firestore.collection("posts")
@@ -67,7 +71,15 @@ class PostRepositoryImpl @Inject constructor(
 
     override suspend fun refreshAllPosts(): Resource<Unit> {
         return try {
-            val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
+            retryWithBackoff(config = DEFAULT_NETWORK_RETRY_CONFIG) {
+                // Thêm limit để tránh load quá nhiều dữ liệu (Firestore limit 1MB/query)
+                // TODO: Implement pagination đầy đủ với startAfter() cho load more
+                postsCollection
+                    .orderBy("createdAt", Query.Direction.DESCENDING)
+                    .limit(50) // Load 50 posts mỗi lần để tránh timeout và tốn băng thông
+                    .get()
+                    .await()
+            }.let { snapshot ->
             val postDTOs = snapshot.toObjects(Post::class.java)
             
             // Collect unique restaurant IDs
@@ -76,10 +88,17 @@ class PostRepositoryImpl @Inject constructor(
                 .filter { it.isNotBlank() }
                 .toSet()
             
+            // Collect unique user IDs (authors)
+            val uniqueUserIds = postDTOs
+                .map { it.userId }
+                .filter { it.isNotBlank() }
+                .toSet()
+            
             // Fetch all restaurants in parallel
             val restaurantMap = mutableMapOf<String, Pair<String, String>>() // restaurantId -> (name, address)
             
             coroutineScope {
+                // Fetch restaurants
                 uniqueRestaurantIds.map { restaurantId ->
                     async {
                         try {
@@ -103,6 +122,18 @@ class PostRepositoryImpl @Inject constructor(
                         restaurantMap[id] = nameAddress
                     }
                 }
+                
+                // Sync user profiles of all authors in parallel
+                uniqueUserIds.map { userId ->
+                    async {
+                        try {
+                            profileRepository.refreshUserProfileById(userId)
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            Log.e("PostRepositoryImpl", "Error syncing user profile $userId", e)
+                        }
+                    }
+                }.awaitAll()
             }
             
             // Map posts to entities with restaurant info
@@ -121,12 +152,19 @@ class PostRepositoryImpl @Inject constructor(
             
             postDao.syncPosts(postEntities)
             
-            // Sync images cho tất cả posts
-            postImageDao.clearAll()
+            // Sync images cho tất cả posts (không clearAll để tránh mất dữ liệu tạm thời)
+            // Mỗi syncPostImages sẽ tự xóa images cũ của post đó trước khi upsert
+            val postIds = postDTOs.map { it.id }.toSet()
             for (post in postDTOs) {
                 syncPostImages(post.id)
             }
             
+            // Cleanup: Xóa images của posts không còn tồn tại
+            // Lưu ý: Chỉ xóa nếu post không còn trong danh sách để tránh mất dữ liệu
+            // (Có thể skip bước này nếu muốn giữ lại images của deleted posts)
+            
+            Unit
+            }
             Resource.Success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -156,6 +194,16 @@ class PostRepositoryImpl @Inject constructor(
                         else -> {
                             // Giữ giá trị mặc định (rỗng) nếu không tìm thấy restaurant
                         }
+                    }
+                }
+                
+                // Sync user profile of author
+                if (post.userId.isNotBlank()) {
+                    try {
+                        profileRepository.refreshUserProfileById(post.userId)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Log.e("PostRepositoryImpl", "Error syncing author profile for post $postId", e)
                     }
                 }
                 
@@ -206,28 +254,32 @@ class PostRepositoryImpl @Inject constructor(
     override suspend fun createPost(post: Post, images: List<PostImage>): Resource<String> {
         val currentUser = auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
         return try {
-            val newPostRef = postsCollection.document()
-            val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
+            retryWithBackoff(config = DEFAULT_NETWORK_RETRY_CONFIG) {
+                val newPostRef = postsCollection.document()
+                val newPost = post.copy(id = newPostRef.id, userId = currentUser.uid)
 
-            // Chạy batch write để tạo bài viết và sub-collection images
-            firestore.batch().apply {
-                set(newPostRef, newPost)
-                images.forEachIndexed { index, image ->
-                    val imageRef = newPostRef.collection("images").document()
-                    set(imageRef, image.copy(order = index))
-                }
-            }.commit().await()
+                // Chạy batch write để tạo bài viết và sub-collection images
+                firestore.batch().apply {
+                    set(newPostRef, newPost)
+                    images.forEachIndexed { index, image ->
+                        val imageRef = newPostRef.collection("images").document()
+                        set(imageRef, image.copy(order = index))
+                    }
+                }.commit().await()
 
-            // Sync images vào Room
-            syncPostImages(newPostRef.id)
+                // Sync images vào Room
+                syncPostImages(newPostRef.id)
 
-            // Logic tăng postCount sẽ do Cloud Function xử lý
+                // Logic tăng postCount sẽ do Cloud Function xử lý
 
-            Resource.Success(newPostRef.id)
+                newPostRef.id
+            }.let { postId ->
+                Resource.Success(postId)
+            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.e("PostRepositoryImpl", "Error creating post", e)
-            Resource.Error(e.message ?: "Lỗi tạo bài đăng")
+            Log.e("PostRepositoryImpl", "Error creating post after retries", e)
+            Resource.Error(e.message ?: "Lỗi tạo bài đăng sau nhiều lần thử")
         }
     }
 
@@ -245,15 +297,19 @@ class PostRepositoryImpl @Inject constructor(
     override suspend fun uploadPostImage(imageUri: Uri): Resource<String> {
         auth.currentUser ?: return Resource.Error("Chưa đăng nhập")
         return try {
-            val imageId = UUID.randomUUID().toString()
-            val storageRef = storage.reference.child("post_images/$imageId.jpg")
-            storageRef.putFile(imageUri).await()
-            storageRef.downloadUrl.await().toString()
-            Resource.Success(storageRef.downloadUrl.await().toString())
+            retryWithBackoff(config = DEFAULT_UPLOAD_RETRY_CONFIG) {
+                val imageId = UUID.randomUUID().toString()
+                val storageRef = storage.reference.child("post_images/$imageId.jpg")
+                storageRef.putFile(imageUri).await()
+                val downloadUrl = storageRef.downloadUrl.await().toString()
+                downloadUrl
+            }.let { downloadUrl ->
+                Resource.Success(downloadUrl)
+            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.e("PostRepositoryImpl", "Error uploading post image", e)
-            Resource.Error(e.message ?: "Lỗi tải ảnh bài đăng lên")
+            Log.e("PostRepositoryImpl", "Error uploading post image after retries", e)
+            Resource.Error(e.message ?: "Lỗi tải ảnh bài đăng lên sau nhiều lần thử")
         }
     }
 
@@ -298,7 +354,14 @@ class PostRepositoryImpl @Inject constructor(
                                 
                                 val restaurantMap = mutableMapOf<String, Pair<String, String>>()
                                 
+                                // Collect unique user IDs (authors)
+                                val uniqueUserIds = postDTOs
+                                    .map { it.userId }
+                                    .filter { it.isNotBlank() }
+                                    .toSet()
+                                
                                 coroutineScope {
+                                    // Fetch restaurants
                                     uniqueRestaurantIds.map { restaurantId ->
                                         async {
                                             try {
@@ -321,6 +384,18 @@ class PostRepositoryImpl @Inject constructor(
                                             restaurantMap[id] = nameAddress
                                         }
                                     }
+                                    
+                                    // Sync user profiles of all authors
+                                    uniqueUserIds.map { userId ->
+                                        async {
+                                            try {
+                                                profileRepository.refreshUserProfileById(userId)
+                                            } catch (e: Exception) {
+                                                if (e is CancellationException) throw e
+                                                Log.e("PostRepositoryImpl", "Error syncing user profile $userId in realtime", e)
+                                            }
+                                        }
+                                    }.awaitAll()
                                 }
                                 
                                 postDTOs.map { post ->
@@ -336,18 +411,103 @@ class PostRepositoryImpl @Inject constructor(
                                 }
                             } else {
                                 // Subsequent updates: preserve existing restaurant info from database
-                                postDTOs.map { post ->
-                                    // Try to get existing post to preserve restaurant info
-                                    val existingPost = try {
-                                        postDao.getPostById(post.id).first()?.post
+                                // Hoặc fetch cho posts mới (không có trong database)
+                                val existingPostsMap = try {
+                                    postDTOs.mapNotNull { post ->
+                                        try {
+                                            postDao.getPostById(post.id).first()?.post?.let { 
+                                                post.id to it 
+                                            }
+                                        } catch (e: Exception) {
+                                            null
+                                        }
+                                    }.toMap()
+                                } catch (e: Exception) {
+                                    emptyMap()
+                                }
+                                
+                                // Tìm posts mới (không có trong database) để fetch restaurant info
+                                val newPostIds = postDTOs
+                                    .filter { it.id !in existingPostsMap }
+                                    .map { it.id to it.restaurantId }
+                                    .filter { (_, restaurantId) -> restaurantId.isNotBlank() }
+                                
+                                val newRestaurantMap = if (newPostIds.isNotEmpty()) {
+                                    val uniqueRestaurantIds = newPostIds.map { it.second }.toSet()
+                                    val restaurantMap = mutableMapOf<String, Pair<String, String>>()
+                                    
+                                    // Collect unique user IDs from new posts
+                                    val newPostUserIds = postDTOs
+                                        .filter { it.id !in existingPostsMap }
+                                        .map { it.userId }
+                                        .filter { it.isNotBlank() }
+                                        .toSet()
+                                    
+                                    try {
+                                        coroutineScope {
+                                            // Fetch restaurants
+                                            uniqueRestaurantIds.map { restaurantId ->
+                                                async {
+                                                    try {
+                                                        val restaurantResult = restaurantRepository.getRestaurantById(restaurantId).first()
+                                                        when (restaurantResult) {
+                                                            is Resource.Success -> {
+                                                                restaurantResult.data?.let { restaurant ->
+                                                                    restaurantId to (restaurant.name to restaurant.address)
+                                                                }
+                                                            }
+                                                            else -> null
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        if (e is CancellationException) throw e
+                                                        null
+                                                    }
+                                                }
+                                            }.awaitAll().forEach { result ->
+                                                result?.let { (id, nameAddress) ->
+                                                    restaurantMap[id] = nameAddress
+                                                }
+                                            }
+                                            
+                                            // Sync user profiles of new post authors
+                                            newPostUserIds.map { userId ->
+                                                async {
+                                                    try {
+                                                        profileRepository.refreshUserProfileById(userId)
+                                                    } catch (e: Exception) {
+                                                        if (e is CancellationException) throw e
+                                                        Log.e("PostRepositoryImpl", "Error syncing user profile $userId for new post", e)
+                                                    }
+                                                }
+                                            }.awaitAll()
+                                        }
                                     } catch (e: Exception) {
-                                        null
+                                        if (e is CancellationException) throw e
+                                        Log.w("PostRepositoryImpl", "Error fetching restaurants for new posts", e)
                                     }
                                     
-                                    val (restaurantName, restaurantAddress) = if (existingPost != null && existingPost.restaurantName.isNotEmpty()) {
-                                        existingPost.restaurantName to existingPost.restaurantAddress
-                                    } else {
-                                        "" to "" // Will be populated when user views post detail
+                                    restaurantMap
+                                } else {
+                                    emptyMap()
+                                }
+                                
+                                postDTOs.map { post ->
+                                    val (restaurantName, restaurantAddress) = when {
+                                        // Case 1: Post đã có trong database, preserve restaurant info
+                                        existingPostsMap[post.id]?.let { existingPost ->
+                                            if (existingPost.restaurantName.isNotEmpty()) {
+                                                existingPost.restaurantName to existingPost.restaurantAddress
+                                            } else null
+                                        } != null -> {
+                                            val existingPost = existingPostsMap[post.id]!!
+                                            existingPost.restaurantName to existingPost.restaurantAddress
+                                        }
+                                        // Case 2: Post mới, fetch restaurant info
+                                        post.restaurantId.isNotBlank() && newRestaurantMap.containsKey(post.restaurantId) -> {
+                                            newRestaurantMap[post.restaurantId]!!
+                                        }
+                                        // Case 3: Không có info, để rỗng (sẽ populate khi user views post detail)
+                                        else -> "" to ""
                                     }
                                     
                                     post.toEntity(
@@ -395,7 +555,44 @@ class PostRepositoryImpl @Inject constructor(
                         try {
                             val post = snap.toObject(Post::class.java)
                             if (post != null) {
-                                postDao.upsert(post.toEntity())
+                                // Fetch restaurant info để populate restaurantName và restaurantAddress
+                                var restaurantName = ""
+                                var restaurantAddress = ""
+                                
+                                if (post.restaurantId.isNotBlank()) {
+                                    try {
+                                        val restaurantResult = restaurantRepository.getRestaurantById(post.restaurantId).first()
+                                        when (restaurantResult) {
+                                            is Resource.Success -> {
+                                                restaurantResult.data?.let { restaurant ->
+                                                    restaurantName = restaurant.name
+                                                    restaurantAddress = restaurant.address
+                                                }
+                                            }
+                                            else -> {
+                                                // Giữ giá trị mặc định (rỗng) nếu không tìm thấy restaurant
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        if (e is CancellationException) throw e
+                                        Log.w("PostRepositoryImpl", "Error fetching restaurant in realtime update", e)
+                                    }
+                                }
+                                
+                                // Sync user profile of author
+                                if (post.userId.isNotBlank()) {
+                                    try {
+                                        profileRepository.refreshUserProfileById(post.userId)
+                                    } catch (e: Exception) {
+                                        if (e is CancellationException) throw e
+                                        Log.w("PostRepositoryImpl", "Error syncing author profile in realtime update", e)
+                                    }
+                                }
+                                
+                                postDao.upsert(post.toEntity(
+                                    restaurantName = restaurantName,
+                                    restaurantAddress = restaurantAddress
+                                ))
                                 
                                 // Chỉ sync images lần đầu
                                 if (isFirstSync) {

@@ -165,7 +165,14 @@ fun AppNavigation(
             route = Screen.CreatePost.route,
             arguments = listOf(navArgument("postId") { nullable = true })
         ) {
-            CreatePostScreen(onNavigateBack = { navController.popBackStack() })
+            CreatePostScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                }
+            )
         }
 
         composable(Screen.Settings.route) {

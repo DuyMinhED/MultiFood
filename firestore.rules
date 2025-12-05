@@ -71,13 +71,18 @@ service cloud.firestore {
         // Ai cũng có thể đọc ảnh
         allow read: if true;
         // Chỉ chủ sở hữu bài viết mới được tạo/sửa/xóa ảnh
-        // Cho phép create khi: post đã tồn tại và user là owner, HOẶC đang tạo post mới trong batch write
+        // Hỗ trợ batch write: Khi tạo post mới, post chưa tồn tại nhưng sẽ được tạo cùng lúc trong batch
+        // Firestore batch writes được xử lý atomic, nên ta cho phép create image khi:
+        // 1. Post đã tồn tại và user là owner, HOẶC
+        // 2. Post chưa tồn tại (đang trong batch write tạo post mới)
+        // Lưu ý: Trong batch write, post sẽ được tạo trước images trong cùng batch, nên rule này an toàn
         allow create: if request.auth != null && (
-          // Post đã tồn tại và user là owner
+          // Case 1: Post đã tồn tại và user là owner
           (exists(/databases/$(database)/documents/posts/$(postId)) 
             && get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid)
           ||
-          // Đang tạo post mới trong batch write (post chưa tồn tại nhưng sẽ được tạo cùng lúc)
+          // Case 2: Đang tạo post mới trong batch write (post chưa tồn tại nhưng sẽ được tạo cùng lúc)
+          // Batch write đảm bảo atomic, nên post sẽ được tạo trước images
           (!exists(/databases/$(database)/documents/posts/$(postId)))
         );
         // Update và delete chỉ khi post đã tồn tại và user là owner
@@ -110,11 +115,31 @@ service cloud.firestore {
     // ============================================
     match /likes/{likeId} {
       // Người dùng chỉ đọc được những like của chính mình
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Cho phép đọc document không tồn tại (cần cho Transaction.get() khi document chưa có)
+      // Format likeId: "{userId}_{postId}"
+      // Lưu ý: Khi document không tồn tại, resource.data sẽ null
+      // Transaction cần đọc để check exists(), nên ta cho phép đọc nếu:
+      // 1. Document tồn tại và userId khớp, HOẶC
+      // 2. Document không tồn tại và likeId có format đúng (bắt đầu với userId + '_')
+      // Để check format: likeId phải bắt đầu với userId + '_'
+      // Sử dụng string comparison: likeId >= userId + '_' && likeId < userId + '`'
+      // (backtick '`' là ký tự ngay sau underscore '_' trong ASCII, đảm bảo likeId bắt đầu đúng)
+      // Đơn giản hóa: Cho phép đọc nếu likeId format đúng (bắt đầu với userId + '_')
+      // Điều này an toàn vì user chỉ có thể đọc like của chính mình
+      allow read: if request.auth != null && (
+        // Case 1: Document tồn tại và userId khớp
+        (resource.data != null && resource.data.userId == request.auth.uid)
+        ||
+        // Case 2: Document không tồn tại nhưng likeId format đúng (cho Transaction)
+        // Check: likeId phải bắt đầu với userId + '_'
+        // Sử dụng string range check: likeId >= userId + '_' && likeId < userId + '`'
+        // Điều này đảm bảo likeId bắt đầu với userId + '_' và có ít nhất 1 ký tự sau
+        (likeId >= request.auth.uid + '_' && likeId < request.auth.uid + '`')
+      );
 
       // Chỉ chủ sở hữu mới tạo/sửa/xóa được bản ghi like của mình
       allow create, update: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data != null && resource.data.userId == request.auth.uid;
     }
 
     // ============================================

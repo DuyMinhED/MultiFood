@@ -43,6 +43,12 @@ android {
 }
 
 dependencies {
+    // Project modules
+    implementation(project(":common"))
+    implementation(project(":core"))
+    implementation(project(":data"))
+    implementation(project(":domain"))
+    implementation(project(":design-system"))
 
     //Data
     implementation(libs.androidx.datastore.preferences)

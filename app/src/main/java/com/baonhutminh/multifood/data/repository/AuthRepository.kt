@@ -1,6 +1,6 @@
 package com.baonhutminh.multifood.data.repository
 
-import com.baonhutminh.multifood.util.Resource
+import com.baonhutminh.multifood.common.Resource
 
 interface AuthRepository {
     suspend fun login(email: String, pass: String): Resource<String>
