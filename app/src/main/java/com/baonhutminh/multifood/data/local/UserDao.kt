@@ -23,4 +23,7 @@ interface UserDao {
     
     @Query("UPDATE user_profiles SET followerCount = MAX(0, followerCount + :delta) WHERE id = :userId")
     suspend fun updateFollowerCount(userId: String, delta: Int)
+    
+    @Query("UPDATE user_profiles SET followingCount = MAX(0, followingCount + :delta) WHERE id = :userId")
+    suspend fun updateFollowingCount(userId: String, delta: Int)
 }

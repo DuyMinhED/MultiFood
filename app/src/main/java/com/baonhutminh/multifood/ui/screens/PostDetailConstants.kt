@@ -8,3 +8,4 @@ object PostDetailConstants {
     const val AUTHOR_AVATAR_SIZE_DP = 48
 }
 
+

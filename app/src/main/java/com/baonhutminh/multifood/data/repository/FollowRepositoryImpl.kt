@@ -46,8 +46,11 @@ class FollowRepositoryImpl @Inject constructor(
             followDao.insert(FollowEntity(followerId = currentUserId, followingId = userId))
         }
         
-        // Update followerCount trong Room ngay lập tức
+        // Update followerCount của user được follow trong Room ngay lập tức
         userDao.updateFollowerCount(userId, delta)
+        
+        // Update followingCount của current user trong Room ngay lập tức
+        userDao.updateFollowingCount(currentUserId, delta)
 
         // Sync với Firestore (không rollback nếu fail - để giữ UX mượt)
         try {

@@ -80,6 +80,7 @@ fun UserProfileScreen(
                         postCount = uiState.posts.size,
                         totalLikes = uiState.userProfile!!.totalLikesReceived,
                         followerCount = uiState.userProfile!!.followerCount,
+                        followingCount = uiState.userProfile!!.followingCount,
                         isFollowing = uiState.isFollowing,
                         isCurrentUser = uiState.isCurrentUser,
                         onFollowClick = { viewModel.toggleFollow() }
@@ -154,6 +155,7 @@ private fun ProfileHeader(
     postCount: Int,
     totalLikes: Int,
     followerCount: Int,
+    followingCount: Int,
     isFollowing: Boolean,
     isCurrentUser: Boolean,
     onFollowClick: () -> Unit
@@ -251,6 +253,11 @@ private fun ProfileHeader(
                 icon = Icons.Default.Person,
                 value = followerCount.coerceAtLeast(0).toString(),
                 label = "Người theo dõi"
+            )
+            StatItem(
+                icon = Icons.Default.PersonAdd,
+                value = followingCount.coerceAtLeast(0).toString(),
+                label = "Đang theo dõi"
             )
         }
     }
