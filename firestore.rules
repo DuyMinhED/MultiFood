@@ -11,8 +11,30 @@ service cloud.firestore {
       allow read: if true;
       // Chỉ người đã đăng nhập mới được tạo
       allow create: if request.auth != null;
-      // Chỉ chủ sở hữu mới được sửa/xóa
-      allow update, delete: if request.auth.uid == userId;
+      // Chủ sở hữu có thể update toàn bộ
+      // Hoặc bất kỳ authenticated user nào cũng có thể update followerCount/followingCount (để hỗ trợ follow/unfollow)
+      allow update: if request.auth != null && (
+        // Chủ sở hữu có thể update toàn bộ
+        request.auth.uid == userId
+        ||
+        // Hoặc chỉ update followerCount/followingCount (cho phép follow/unfollow)
+        // Khi dùng SetOptions.merge() với FieldValue.increment(), chỉ các field được chỉ định mới thay đổi
+        // Kiểm tra: chỉ followerCount hoặc followingCount được thay đổi (có thể có updatedAt)
+        (('followerCount' in request.resource.data.diff(resource.data).affectedKeys() 
+           || 'followingCount' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('id' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('name' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('email' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('username' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('phoneNumber' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('avatarUrl' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('bio' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('isVerified' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('postCount' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('totalLikesReceived' in request.resource.data.diff(resource.data).affectedKeys())
+         && !('createdAt' in request.resource.data.diff(resource.data).affectedKeys()))
+      );
+      allow delete: if request.auth.uid == userId;
     }
 
     // ============================================
@@ -93,6 +115,24 @@ service cloud.firestore {
       // Chỉ chủ sở hữu mới tạo/sửa/xóa được bản ghi like của mình
       allow create, update: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // ============================================
+    // FOLLOWS COLLECTION
+    // ============================================
+    match /follows/{followId} {
+      // Ai cũng có thể đọc (để check follow status)
+      allow read: if true;
+      // Chỉ người đã đăng nhập mới được tạo follow document
+      // followId format: "{followerId}_{followingId}"
+      allow create: if request.auth != null 
+        && request.resource.data.followerId == request.auth.uid
+        && followId == request.resource.data.followerId + '_' + request.resource.data.followingId;
+      // Không cho phép update (chỉ tạo/xóa)
+      allow update: if false;
+      // Chỉ follower (người follow) mới được xóa follow document của chính họ
+      allow delete: if request.auth != null 
+        && resource.data.followerId == request.auth.uid;
     }
   }
 }

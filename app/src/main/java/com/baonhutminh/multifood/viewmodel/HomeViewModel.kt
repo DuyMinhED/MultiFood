@@ -133,19 +133,20 @@ class HomeViewModel @Inject constructor(
     )
 
     init {
-        // Realtime sync posts
+        // Refresh all posts lần đầu để đảm bảo có đầy đủ thông tin (bao gồm restaurantName và restaurantAddress)
+        viewModelScope.launch {
+            _isLoading.value = true
+            postRepository.refreshAllPosts()
+            profileRepository.refreshUserProfile()
+            // Likes sẽ được sync tự động qua getLikedPostsForCurrentUser() flow
+            _isLoading.value = false
+        }
+        
+        // Realtime sync posts (sẽ preserve restaurant info từ database)
         viewModelScope.launch {
             postRepository.observePostsRealtime()
                 .catch { e -> Log.e(TAG, "Realtime sync error", e) }
                 .collect()
-        }
-        
-        // Sync user profile lần đầu
-        viewModelScope.launch {
-            _isLoading.value = true
-            profileRepository.refreshUserProfile()
-            // Likes sẽ được sync tự động qua getLikedPostsForCurrentUser() flow
-            _isLoading.value = false
         }
     }
 

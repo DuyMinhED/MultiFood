@@ -121,7 +121,7 @@ fun PostDetailScreen(
                             AuthorHeader(
                                 author = author,
                                 createdAt = post.createdAt,
-                                onAuthorClick = { onUserProfileClick(author.id) }
+                                onAuthorClick = onUserProfileClick
                             )
                         }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))

@@ -16,6 +16,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -66,7 +69,56 @@ class PostRepositoryImpl @Inject constructor(
         return try {
             val snapshot = postsCollection.orderBy("createdAt", Query.Direction.DESCENDING).get().await()
             val postDTOs = snapshot.toObjects(Post::class.java)
-            val postEntities = postDTOs.map { it.toEntity() }
+            
+            // Collect unique restaurant IDs
+            val uniqueRestaurantIds = postDTOs
+                .map { it.restaurantId }
+                .filter { it.isNotBlank() }
+                .toSet()
+            
+            // Fetch all restaurants in parallel
+            val restaurantMap = mutableMapOf<String, Pair<String, String>>() // restaurantId -> (name, address)
+            
+            coroutineScope {
+                uniqueRestaurantIds.map { restaurantId ->
+                    async {
+                        try {
+                            val restaurantResult = restaurantRepository.getRestaurantById(restaurantId).first()
+                            when (restaurantResult) {
+                                is Resource.Success -> {
+                                    restaurantResult.data?.let { restaurant ->
+                                        restaurantId to (restaurant.name to restaurant.address)
+                                    }
+                                }
+                                else -> null
+                            }
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            Log.e("PostRepositoryImpl", "Error fetching restaurant $restaurantId", e)
+                            null
+                        }
+                    }
+                }.awaitAll().forEach { result ->
+                    result?.let { (id, nameAddress) ->
+                        restaurantMap[id] = nameAddress
+                    }
+                }
+            }
+            
+            // Map posts to entities with restaurant info
+            val postEntities = postDTOs.map { post ->
+                val (restaurantName, restaurantAddress) = if (post.restaurantId.isNotBlank()) {
+                    restaurantMap[post.restaurantId] ?: ("" to "")
+                } else {
+                    "" to ""
+                }
+                
+                post.toEntity(
+                    restaurantName = restaurantName,
+                    restaurantAddress = restaurantAddress
+                )
+            }
+            
             postDao.syncPosts(postEntities)
             
             // Sync images cho tất cả posts
@@ -235,7 +287,75 @@ class PostRepositoryImpl @Inject constructor(
                     launch {
                         try {
                             val postDTOs = snap.toObjects(Post::class.java)
-                            val postEntities = postDTOs.map { it.toEntity() }
+                            
+                            // Fetch restaurant info for all posts (only on first sync for performance)
+                            val postEntities = if (isFirstSync) {
+                                // First sync: fetch restaurant info in parallel
+                                val uniqueRestaurantIds = postDTOs
+                                    .map { it.restaurantId }
+                                    .filter { it.isNotBlank() }
+                                    .toSet()
+                                
+                                val restaurantMap = mutableMapOf<String, Pair<String, String>>()
+                                
+                                coroutineScope {
+                                    uniqueRestaurantIds.map { restaurantId ->
+                                        async {
+                                            try {
+                                                val restaurantResult = restaurantRepository.getRestaurantById(restaurantId).first()
+                                                when (restaurantResult) {
+                                                    is Resource.Success -> {
+                                                        restaurantResult.data?.let { restaurant ->
+                                                            restaurantId to (restaurant.name to restaurant.address)
+                                                        }
+                                                    }
+                                                    else -> null
+                                                }
+                                            } catch (e: Exception) {
+                                                if (e is CancellationException) throw e
+                                                null
+                                            }
+                                        }
+                                    }.awaitAll().forEach { result ->
+                                        result?.let { (id, nameAddress) ->
+                                            restaurantMap[id] = nameAddress
+                                        }
+                                    }
+                                }
+                                
+                                postDTOs.map { post ->
+                                    val (restaurantName, restaurantAddress) = if (post.restaurantId.isNotBlank()) {
+                                        restaurantMap[post.restaurantId] ?: ("" to "")
+                                    } else {
+                                        "" to ""
+                                    }
+                                    post.toEntity(
+                                        restaurantName = restaurantName,
+                                        restaurantAddress = restaurantAddress
+                                    )
+                                }
+                            } else {
+                                // Subsequent updates: preserve existing restaurant info from database
+                                postDTOs.map { post ->
+                                    // Try to get existing post to preserve restaurant info
+                                    val existingPost = try {
+                                        postDao.getPostById(post.id).first()?.post
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                    
+                                    val (restaurantName, restaurantAddress) = if (existingPost != null && existingPost.restaurantName.isNotEmpty()) {
+                                        existingPost.restaurantName to existingPost.restaurantAddress
+                                    } else {
+                                        "" to "" // Will be populated when user views post detail
+                                    }
+                                    
+                                    post.toEntity(
+                                        restaurantName = restaurantName,
+                                        restaurantAddress = restaurantAddress
+                                    )
+                                }
+                            }
                             
                             // Dùng upsertAll thay vì syncPosts để không xóa dữ liệu local
                             // Giữ lại optimistic update

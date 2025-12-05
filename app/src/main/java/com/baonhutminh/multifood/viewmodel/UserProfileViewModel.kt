@@ -114,7 +114,25 @@ class UserProfileViewModel @Inject constructor(
     fun toggleFollow() {
         viewModelScope.launch {
             val currentlyFollowing = uiState.value.isFollowing
-            followRepository.toggleFollow(userId, currentlyFollowing)
+            val result = followRepository.toggleFollow(userId, currentlyFollowing)
+            
+            // Refresh user profile để cập nhật followerCount
+            if (result is Resource.Success) {
+                profileRepository.refreshUserProfileById(userId)
+                // Nếu đang xem profile của chính mình, refresh current user profile để cập nhật followingCount
+                if (userId == currentUserId) {
+                    profileRepository.refreshUserProfile()
+                }
+            }
+        }
+    }
+    
+    init {
+        // Sync follow status từ Firestore khi khởi tạo
+        viewModelScope.launch {
+            followRepository.syncFollowsFromFirestore()
+            // Refresh user profile để đảm bảo có dữ liệu mới nhất
+            profileRepository.refreshUserProfileById(userId)
         }
     }
 }

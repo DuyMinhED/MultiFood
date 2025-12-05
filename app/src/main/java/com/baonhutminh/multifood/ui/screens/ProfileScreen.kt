@@ -358,16 +358,16 @@ fun ProfileScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
 
                     Text(
                         text = "Tài khoản & Bảo mật",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                     )
 
                     Card(
@@ -375,7 +375,10 @@ fun ProfileScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
                         shape = MaterialTheme.shapes.large,
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
                     ) {
                         Column {
                             ProfileMenuItem(

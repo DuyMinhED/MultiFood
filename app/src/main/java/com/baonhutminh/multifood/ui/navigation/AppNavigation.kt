@@ -111,6 +111,9 @@ fun AppNavigation(
                     },
                     onSearchClick = {
                         navController.navigate(Screen.Search.route)
+                    },
+                    onUserProfileClick = { userId ->
+                        navController.navigate(Screen.UserProfile.createRoute(userId))
                     }
                 )
             }
@@ -151,6 +154,9 @@ fun AppNavigation(
                 },
                 onNavigateToEdit = { postId ->
                     navController.navigate(Screen.CreatePost.createRoute(postId))
+                },
+                onUserProfileClick = { userId ->
+                    navController.navigate(Screen.UserProfile.createRoute(userId))
                 }
             )
         }
@@ -180,6 +186,19 @@ fun AppNavigation(
             SearchScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onDetailClick = { postId ->
+                    navController.navigate(Screen.Detail.createRoute(postId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.UserProfile.route,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            UserProfileScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onPostClick = { postId ->
                     navController.navigate(Screen.Detail.createRoute(postId))
                 }
             )

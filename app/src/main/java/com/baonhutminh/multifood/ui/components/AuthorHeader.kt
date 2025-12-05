@@ -23,12 +23,12 @@ fun AuthorHeader(
     author: UserProfile?,
     createdAt: Date?,
     modifier: Modifier = Modifier,
-    onAuthorClick: (() -> Unit)? = null
+    onAuthorClick: ((String) -> Unit)? = null
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onAuthorClick != null) Modifier.clickable(onClick = onAuthorClick) else Modifier)
+            .then(if (onAuthorClick != null && author != null) Modifier.clickable { onAuthorClick(author.id) } else Modifier)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
